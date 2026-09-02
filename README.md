@@ -34,18 +34,13 @@ Control robot vacuums registered in the [Tesvor Home](https://play.google.com/st
 
 ## Installation
 
-### Via HACS
+### Via HACS (Recommended)
 
-1. Find and install the "Tesvor" integration in **HACS** (default repository).
-2. Restart Home Assistant.
-
-### Via HACS (Custom Repository)
-
-If the integration is not available in your HACS list, you can add it manually:
-
-1. Add this repository to HACS as a custom repository.
-2. Install the Tesvor integration.
-3. Restart Home Assistant.
+1. Open **HACS → Integrations**.
+2. Open the menu in the top-right corner and select **Custom repositories**.
+3. Add `https://github.com/Aulig/hass-tesvor` with the category **Integration**.
+4. Find and download the "Tesvor" integration in HACS.
+5. Restart Home Assistant.
 
 ### Manual Installation
 
