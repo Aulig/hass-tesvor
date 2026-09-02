@@ -1,15 +1,10 @@
-# Neatsvor Integration for Home Assistant
+# Tesvor Integration for Home Assistant
 
 [![EN](https://img.shields.io/badge/English-blue)](README.md)
 [![RU](https://img.shields.io/badge/Русский-red)](README_ru.md)
-[![HACS Default](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/hacs/default)
-[![GitHub Release](https://img.shields.io/github/v/release/CoderAS-ru/hass-neatsvor)](https://github.com/CoderAS-ru/hass-neatsvor/releases/latest)
-[![GitHub Downloads](https://img.shields.io/github/downloads/CoderAS-ru/hass-neatsvor/total)](https://github.com/CoderAS-ru/hass-neatsvor/releases)
-[![License](https://img.shields.io/github/license/CoderAS-ru/hass-neatsvor)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/CoderAS-ru/hass-neatsvor?style=popout&logo=github&logoColor=white)](https://github.com/CoderAS-ru/hass-neatsvor/stargazers)
-[![GitHub last commit](https://img.shields.io/github/last-commit/CoderAS-ru/hass-neatsvor?style=popout&logo=github&logoColor=white)](https://github.com/CoderAS-ru/hass-neatsvor/commits/main)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Control your Neatsvor robot vacuum (and other [BlackVision](https://www.blackvision.net/)-based devices using [Libos Home](https://play.google.com/store/apps/details?id=com.blackvision.libos2), [Neatsvor Home](https://play.google.com/store/apps/details?id=com.haibaina.neatsvor), [Joy Life](https://play.google.com/store/apps/details?id=com.blackvision.joylife) apps) in Home Assistant.
+Control robot vacuums registered in the [Tesvor Home](https://play.google.com/store/apps/details?id=com.teasvor.home) app from Home Assistant. This Tesvor-specific fork is based on [hass-neatsvor](https://github.com/CoderAS-ru/hass-neatsvor).
 
 <pre>
 <img height="400" alt="image 1" src="https://github.com/user-attachments/assets/6419f86e-c2d4-4ad0-9c87-4f2353e58050" /> <img height="400" alt="image 2" src="https://github.com/user-attachments/assets/9ac0f6e0-51f0-4c3e-8b10-6ff4e5e7264c" /> <img height="400" alt="image 3" src="https://github.com/user-attachments/assets/074ffd55-1ffa-4e4f-979d-6359d8c845ec" /> <img height="400" alt="image 4" src="https://github.com/user-attachments/assets/512a0f42-579d-4dc6-a25d-46958b33481d" /> <img height="400" alt="image 5" src="https://github.com/user-attachments/assets/1b3a7ea5-862f-4392-ac62-f80aa16cabd2" />
@@ -39,7 +34,7 @@ Control your Neatsvor robot vacuum (and other [BlackVision](https://www.blackvis
 
 ### Via HACS
 
-1. Find and install the "Neatsvor" integration in **HACS** (default repository).
+1. Find and install the "Tesvor" integration in **HACS** (default repository).
 2. Restart Home Assistant.
 
 ### Via HACS (Custom Repository)
@@ -47,12 +42,12 @@ Control your Neatsvor robot vacuum (and other [BlackVision](https://www.blackvis
 If the integration is not available in your HACS list, you can add it manually:
 
 1. Add this repository to HACS as a custom repository.
-2. Install the Neatsvor integration.
+2. Install the Tesvor integration.
 3. Restart Home Assistant.
 
 ### Manual Installation
 
-- Copy the `custom_components/neatsvor` folder to your `config/custom_components/`
+- Copy the `custom_components/tesvor` folder to your `config/custom_components/`
 - Restart Home Assistant
 
 ## Configuration
@@ -61,57 +56,16 @@ If the integration is not available in your HACS list, you can add it manually:
 
 - Go to **Settings → Devices & Services**
 - Click **"+ Add Integration"**
-- Find and select "Neatsvor"
-- Choose the app where your vacuum is registered:
-    - **Libos Home** — for BlackVision devices (default)
-    - **Neatsvor Home** — for official Neatsvor vacuums
-    - **Joy Life** — for devices controlled via JoyLife
-- Enter the **phone code** (country/region) for your account (you can use formats like "+7" or "7")
-- Enter your **email** and **password** for the selected app
+- Find and select "Tesvor"
+- Enter the **phone code** (country/region) used by your Tesvor Home account (for example, "+49" or "49")
+- Enter your **Tesvor Home email** and **password**
 - Complete the setup
 
 ### Account Requirements
 
-- Create an account in the chosen app and pair your device if you haven't already
+- Create an account in Tesvor Home and pair your device if you haven't already
 - Important rule: **One account - one connection**
 - For control from multiple devices, use the **"Share Device"** function in the app
-
-### Switching Between Apps
-
-If you have devices in different apps:
-
-- Go to **Settings → Devices & Services → Neatsvor → Configure**
-- Change the **"App"** parameter
-- The integration will automatically reload with the new settings
-
-> **Note:** Using multiple apps simultaneously requires creating separate integration instances.
-
-## ⚠️ !!! Important Update for v2.1.0 and above !!!
-
-In version v2.1.0, the integration's architecture was completely redesigned to support multiple devices. This resulted in a change to the **`entity_id` format for ALL entities**.
-
-**New format:** `sensor.neatsvor_<device_id>_status` (instead of `sensor.s700_status`).
-
-**What this means for you:**
-
-1. **After the update**, your old entities (e.g., `sensor.s700_status`) **may become unavailable**.
-
-2. **Important:** If you have **only one device**, the integration may keep the simplified format (`s700_*`) for backward compatibility. This is normal — you can continue using the old IDs.
-
-3. **When you need to switch to the new format:**
-   - You have multiple devices
-   - You are installing the integration from scratch
-   - You want to unify IDs for all entities
-
-4. **How to switch to the new format:**
-   - Remove the integration (Settings → Devices & Services → Neatsvor → Remove)
-   - Delete all old `s700_*` entities
-   - Restart Home Assistant
-   - Add the integration again
-
-5. **If you use multiple devices**, each will have its own unique `<device_id>`, allowing the integration to distinguish them.
-
-**Recommendation:** If you have one device and everything is working — you don't need to change anything. If you plan to add a second device, it's better to switch to the new format now.
 
 ## Usage
 
@@ -120,23 +74,23 @@ In version v2.1.0, the integration's architecture was completely redesigned to s
 To use zone cleaning, you need to install `lovelace-xiaomi-vacuum-map-card`:
 ```yaml
 type: custom:xiaomi-vacuum-map-card
-entity: vacuum.neatsvor_vacuum
+entity: vacuum.tesvor_vacuum
 map_source:
-  camera: camera.neatsvor_<device_id>_live_camera
+  camera: camera.tesvor_<device_id>_live_camera
 calibration_source:
   identity: true
 zones:
-  service: neatsvor.vacuum_clean_zone
+  service: tesvor.vacuum_clean_zone
   service_data:
-    entity_id: vacuum.neatsvor_vacuum
+    entity_id: vacuum.tesvor_vacuum
     zones: "[[x1, y1, x2, y2, 1]]"
 ```
 
 ### Voice Cleaning of Individual Rooms
 1. Go to **Settings → Automations & Scenes → Scripts**
 2. Click **"Create Script" → "Create new script" → "Add Action"**
-3. In the search field, type **'neatsvor'**
-4. Select the action **'Neatsvor: Clean room with preset'**
+3. In the search field, type **'tesvor'**
+4. Select the action **'Tesvor: Clean room with preset'**
 5. Specify:
    - **Targets → Add target**: Select your robot vacuum
    - **Room name: The exact name of the room (case-sensitive!)**
@@ -148,13 +102,13 @@ zones:
 In YAML mode:
 ```yaml
 sequence:
-  - action: neatsvor.clean_room_with_preset
+  - action: tesvor.clean_room_with_preset
     metadata: {}
     data:
       use_preset: true
       room: Kitchen
     target:
-      entity_id: vacuum.neatsvor_<device_id>_vacuum
+      entity_id: vacuum.tesvor_<device_id>_vacuum
 alias: Clean Kitchen
 description: Start cleaning the kitchen
 ```
@@ -168,24 +122,24 @@ After this, you can use voice commands in the "Smart Home with Alice" app:
 
 | Service | Description |
 |---------|-------------|
-| `neatsvor.vacuum_clean_zone` | Start zone cleaning |
-| `neatsvor.clean_room_with_preset` | Clean a room using saved presets |
-| `neatsvor.set_reference_map` | Set the current map as reference |
-| `neatsvor.restore_reference_map` | Restore room config from reference map |
-| `neatsvor.compare_with_reference` | Compare current map with reference |
-| `neatsvor.request_all_data` | Request all data like the official app |
-| `neatsvor.request_map` | Request the current map |
-| `neatsvor.build_map` | Fast map build without cleaning |
-| `neatsvor.empty_dust` | Force empty the dust bin |
-| `neatsvor.use_cloud_map` | Use a specific cloud map as current |
-| `neatsvor.use_selected_cloud_map` | Use the selected cloud map as current |
-| `neatsvor.force_load_history` | Force-load all cleaning history maps |
-| `neatsvor.cleanup_maps` | Remove old realtime maps and metadata |
-| `neatsvor.cleanup_history_maps` | Clean up old history maps |
-| `neatsvor.cleanup_all_except_current` | Clean up all history maps except current |
-| `neatsvor.force_update_maps` | Force-refresh all map-related sensors |
-| `neatsvor.save_select_states` | Save current select-entity states |
-| `neatsvor.restore_select_states` | Restore saved select-entity states |
+| `tesvor.vacuum_clean_zone` | Start zone cleaning |
+| `tesvor.clean_room_with_preset` | Clean a room using saved presets |
+| `tesvor.set_reference_map` | Set the current map as reference |
+| `tesvor.restore_reference_map` | Restore room config from reference map |
+| `tesvor.compare_with_reference` | Compare current map with reference |
+| `tesvor.request_all_data` | Request all data like the official app |
+| `tesvor.request_map` | Request the current map |
+| `tesvor.build_map` | Fast map build without cleaning |
+| `tesvor.empty_dust` | Force empty the dust bin |
+| `tesvor.use_cloud_map` | Use a specific cloud map as current |
+| `tesvor.use_selected_cloud_map` | Use the selected cloud map as current |
+| `tesvor.force_load_history` | Force-load all cleaning history maps |
+| `tesvor.cleanup_maps` | Remove old realtime maps and metadata |
+| `tesvor.cleanup_history_maps` | Clean up old history maps |
+| `tesvor.cleanup_all_except_current` | Clean up all history maps except current |
+| `tesvor.force_update_maps` | Force-refresh all map-related sensors |
+| `tesvor.save_select_states` | Save current select-entity states |
+| `tesvor.restore_select_states` | Restore saved select-entity states |
 
 ## Example Automation: Status Notifications
 
@@ -204,18 +158,18 @@ This example automation sends you notifications about your vacuum's status, incl
 2. Replace the placeholder variables with your own entity names and personal details.
 3. Paste the automation into your `automations.yaml` file or create it via the Home Assistant UI.
 
-[📄 Download the automation example](SAMPLE_automation_neatsvor_status.yaml)
+[📄 Download the automation example](SAMPLE_automation_tesvor_status.yaml)
 
 ### Required entities
 
-Make sure you have the following sensors from the Neatsvor integration:
+Make sure you have the following sensors from the Tesvor integration:
 
-- `sensor.neatsvor_<device_id>_status` — current vacuum status.
-- `sensor.neatsvor_<device_id>_clean_history` — cleaning history records.
-- `sensor.neatsvor_<device_id>_map_data` — map data with the `map_path` attribute.
-- `sensor.neatsvor_<device_id>_current_clean_time` — current cleaning time.
-- `sensor.neatsvor_<device_id>_current_clean_area` — current cleaning area.
-- `sensor.neatsvor_<device_id>_battery` — battery level.
+- `sensor.tesvor_<device_id>_status` — current vacuum status.
+- `sensor.tesvor_<device_id>_clean_history` — cleaning history records.
+- `sensor.tesvor_<device_id>_map_data` — map data with the `map_path` attribute.
+- `sensor.tesvor_<device_id>_current_clean_time` — current cleaning time.
+- `sensor.tesvor_<device_id>_current_clean_area` — current cleaning area.
+- `sensor.tesvor_<device_id>_battery` — battery level.
 
 ### Customization
 
@@ -226,37 +180,31 @@ variables:
   # ========== PERSONAL DATA (REPLACE WITH YOUR OWN) ==========
   external_url: "https://YOUR-DOMAIN.duckdns.org:8123"    # Your Home Assistant URL
   mobile_notify_service: "notify.mobile_app_YOUR_DEVICE" # Your mobile notification service
-  
+
   # ========== ENTITY NAMES (REPLACE WITH YOUR OWN) ==========
-  vacuum_status_entity: "sensor.neatsvor_<device_id>_status"
-  vacuum_clean_history: "sensor.neatsvor_<device_id>_clean_history"
-  vacuum_map_data: "sensor.neatsvor_<device_id>_map_data"
-  vacuum_clean_time: "sensor.neatsvor_<device_id>_current_clean_time"
-  vacuum_clean_area: "sensor.neatsvor_<device_id>_current_clean_area"
-  vacuum_battery: "sensor.neatsvor_<device_id>_battery"
+  vacuum_status_entity: "sensor.tesvor_<device_id>_status"
+  vacuum_clean_history: "sensor.tesvor_<device_id>_clean_history"
+  vacuum_map_data: "sensor.tesvor_<device_id>_map_data"
+  vacuum_clean_time: "sensor.tesvor_<device_id>_current_clean_time"
+  vacuum_clean_area: "sensor.tesvor_<device_id>_current_clean_area"
+  vacuum_battery: "sensor.tesvor_<device_id>_battery"
 ```
 
 ## Supported Devices
-### Neatsvor
-  - [S700](https://neatsvor.ru/product/productDetail?spuId=28)
-  - [N7](https://neatsvor.ru/product/productDetail?spuId=40)
-
-### BlackVision
-  - Other BlackVision platform devices
-
-### JoyLife
-  - Devices managed via JoyLife
+### Tesvor
+  - [S700](https://tesvor.ru/product/productDetail?spuId=28)
+  - [N7](https://tesvor.ru/product/productDetail?spuId=40)
 
 ## Troubleshooting
 ### Authentication Error
 - Check your email and password
 - Ensure the correct phone code is selected
-- Verify the correct app is chosen
+- Verify that the account works in the Tesvor Home app
 
 ### Map Not Displayed
 - Make sure the robot has completed at least one cleaning
 - Check the MQTT connection in the logs
-- Try calling the neatsvor.request_map service
+- Try calling the tesvor.request_map service
 
 ### Zone Cleaning Doesn't Work
 - Ensure xiaomi-vacuum-map-card is installed
@@ -268,7 +216,7 @@ variables:
 - Check that a firewall isn't blocking connections to the BlackVision MQTT servers
 
 ### Logs
-Logs can be viewed at **Settings → System → Logs** → select custom_components.neatsvor.
+Logs can be viewed at **Settings → System → Logs** → select custom_components.tesvor.
 
 ## Known Limitations
 - Zone cleaning coordinates are automatically adjusted for the map's origin offset
@@ -299,7 +247,7 @@ By retrieving the DP schema from the cloud, the integration:
 
 ### Legal Information
 
-This integration was created for educational purposes and for the Home Assistant community. The developer is not affiliated with BlackVision or Neatsvor. All trademarks are the property of their respective owners.
+This integration was created for educational purposes and for the Home Assistant community. The developer is not affiliated with BlackVision or Tesvor. All trademarks are the property of their respective owners.
 
 > **Note**: This integration does not modify device firmware, bypass security systems, or violate the terms of use of the official applications.
 

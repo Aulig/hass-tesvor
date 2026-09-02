@@ -1,15 +1,10 @@
-# Neatsvor Integration for Home Assistant
+# Tesvor Integration for Home Assistant
 
 [![EN](https://img.shields.io/badge/English-blue)](README.md)
 [![RU](https://img.shields.io/badge/Русский-red)](README_ru.md)
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/docs/faq/custom_repositories)
-[![GitHub Release](https://img.shields.io/github/v/release/CoderAS-ru/hass-neatsvor)](https://github.com/CoderAS-ru/hass-neatsvor/releases/latest)
-[![GitHub Downloads](https://img.shields.io/github/downloads/CoderAS-ru/hass-neatsvor/total)](https://github.com/CoderAS-ru/hass-neatsvor/releases)
-[![License](https://img.shields.io/github/license/CoderAS-ru/hass-neatsvor)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/CoderAS-ru/hass-neatsvor?style=popout&logo=github&logoColor=white)](https://github.com/CoderAS-ru/hass-neatsvor/stargazers)
-[![GitHub last commit](https://img.shields.io/github/last-commit/CoderAS-ru/hass-neatsvor?style=popout&logo=github&logoColor=white)](https://github.com/CoderAS-ru/hass-neatsvor/commits/main)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Интеграция для управления пылесосами Neatsvor (и другими на платформе [BlackVision](https://www.blackvision.net/), управляемыми посредством приложений [Libos Home](https://play.google.com/store/apps/details?id=com.blackvision.libos2), [Neatsvor Home](https://play.google.com/store/apps/details?id=com.haibaina.neatsvor), [Joy Life](https://play.google.com/store/apps/details?id=com.blackvision.joylife)) в Home Assistant.
+Интеграция для управления роботами-пылесосами, зарегистрированными в приложении [Tesvor Home](https://play.google.com/store/apps/details?id=com.teasvor.home), из Home Assistant. Эта специализированная версия основана на [hass-neatsvor](https://github.com/CoderAS-ru/hass-neatsvor).
 
 <pre>
 <img height="400" alt="image 1" src="https://github.com/user-attachments/assets/6419f86e-c2d4-4ad0-9c87-4f2353e58050" /> <img height="400" alt="image 2" src="https://github.com/user-attachments/assets/9ac0f6e0-51f0-4c3e-8b10-6ff4e5e7264c" /> <img height="400" alt="image 3" src="https://github.com/user-attachments/assets/074ffd55-1ffa-4e4f-979d-6359d8c845ec" /> <img height="400" alt="image 4" src="https://github.com/user-attachments/assets/512a0f42-579d-4dc6-a25d-46958b33481d" /> <img height="400" alt="image 5" src="https://github.com/user-attachments/assets/1b3a7ea5-862f-4392-ac62-f80aa16cabd2" />
@@ -38,7 +33,7 @@
 
 ### Через HACS
 
-1. Найдите и установите интеграцию "Neatsvor" в HACS (стандартный репозиторий).
+1. Найдите и установите интеграцию "Tesvor" в HACS (стандартный репозиторий).
 2. Перезапустите Home Assistant.
 
 ### Через HACS (пользовательский репозиторий)
@@ -46,12 +41,12 @@
 Если интеграция не отображается в вашем списке HACS, вы можете добавить её вручную:
 
 1. Добавьте этот репозиторий в HACS как пользовательский репозиторий.
-2. Установите интеграцию Neatsvor.
+2. Установите интеграцию Tesvor.
 3. Перезапустите Home Assistant.
 
 ### Ручная установка
 
-1. Скопируйте папку `custom_components/neatsvor` в `config/custom_components/`
+1. Скопируйте папку `custom_components/tesvor` в `config/custom_components/`
 2. Перезапустите Home Assistant
 
 ## Настройка
@@ -60,57 +55,16 @@
 
 1. Перейдите в **Настройки → Устройства и сервисы**
 2. Нажмите **"+ Добавить интеграцию"**
-3. Найдите в списке **"Neatsvor"**
-4. Выберите **приложение**, в котором зарегистрирован пылесос:
-   - **Libos Home** — для устройств BlackVision (по умолчанию)
-   - **Neatsvor Home** — для официальных пылесосов Neatsvor
-   - **Joy Life** — для устройств, управляемых через JoyLife
-5. Введите телефонный код **страны/региона** указанный для учетной записи в приложении (возможно указание как в формате "+7", так и "7")
-6. Введите **email и пароль** от аккаунта в выбранном приложении
-7. Завершите установку
+3. Найдите в списке **"Tesvor"**
+4. Введите телефонный код **страны/региона** учетной записи Tesvor Home (например, "+49" или "49")
+5. Введите **email и пароль** от аккаунта Tesvor Home
+6. Завершите установку
 
 ### Требования к аккаунту
 
-- При необходимости, создайте аккаунт в выбранном приложении и выполните привязку устройства
+- При необходимости создайте аккаунт в Tesvor Home и привяжите устройство
 - **Важное правило**: "один аккаунт - одно подключение"
 - Для управления с нескольких устройств используйте функцию "Поделиться устройством" в приложении
-
-### Переключение между приложениями
-
-Если у вас есть устройства в разных приложениях, вы можете:
-
-1. Перейти в **Настройки → Устройства и сервисы → Neatsvor → Настроить**
-2. Изменить параметр **"Приложение"** на нужное
-3. Интеграция автоматически перезагрузится с новыми настройками
-
-> **Примечание**: Для использования нескольких приложений одновременно потребуется создать отдельные экземпляры интеграции.
-
-## ⚠️ !!! Важное обновление для версии v2.1.0 и выше !!!
-
-В версии v2.1.0 была полностью переработана архитектура интеграции для поддержки нескольких устройств. Это привело к изменению **формата `entity_id` для ВСЕХ сущностей**.
-
-**Новый формат:** `sensor.neatsvor_<device_id>_status` (вместо `sensor.s700_status`).
-
-**Что это значит для вас:**
-
-1. **После обновления** ваши старые сущности (например, `sensor.s700_status`) **могут стать недоступными**.
-   
-2. **Важно:** Если у вас **только одно устройство**, интеграция может сохранить упрощённый формат (`s700_*`) для обратной совместимости. Это нормально — вы можете продолжать использовать старые ID.
-
-3. **Когда нужно переходить на новый формат:**
-   - У вас несколько устройств
-   - Вы устанавливаете интеграцию с нуля
-   - Вы хотите унифицировать ID для всех сущностей
-
-4. **Как перейти на новый формат:**
-   - Удалите интеграцию (Настройки → Устройства и сервисы → Neatsvor → Удалить)
-   - Удалите все старые сущности `s700_*`
-   - Перезагрузите Home Assistant
-   - Добавьте интеграцию заново
-
-5. **Если вы используете несколько устройств**, у каждого будет свой уникальный `<device_id>`, что позволит интеграции различать их.
-
-**Рекомендация:** Если у вас одно устройство и всё работает — можете ничего не менять. Если планируете добавлять второе — лучше сразу перейти на новый формат.
 
 ## Использование
 
@@ -120,15 +74,15 @@
 
 ```yaml
 type: custom:xiaomi-vacuum-map-card
-entity: vacuum.neatsvor_vacuum
+entity: vacuum.tesvor_vacuum
 map_source:
-  camera: camera.neatsvor_<device_id>_live_camera
+  camera: camera.tesvor_<device_id>_live_camera
 calibration_source:
   identity: true
 zones:
-  service: neatsvor.vacuum_clean_zone
+  service: tesvor.vacuum_clean_zone
   service_data:
-    entity_id: vacuum.neatsvor_vacuum
+    entity_id: vacuum.tesvor_vacuum
     zones: "[[x1, y1, x2, y2, 1]]"
 ```
 
@@ -136,8 +90,8 @@ zones:
 
 1. Перейдите в **Настройки → Автоматизации и сцены → Скрипты**
 2. Нажмите **"Создать скрипт" → "Создать новый скрипт" → "Добавить действие"**
-3. В поле поиска введите **'neatsvor'**
-4. Выберите действие **'Neatsvor: Убрать комнату с пресетом'**
+3. В поле поиска введите **'tesvor'**
+4. Выберите действие **'Tesvor: Убрать комнату с пресетом'**
 5. Укажите:
    - **Цели → Добавить цель**: Выберите свой робот-пылесос
    - В поле **Room name**: Укажите название комнаты
@@ -154,13 +108,13 @@ zones:
 Или в режиме YAML:
 ```yaml
 sequence:
-  - action: neatsvor.clean_room_with_preset
+  - action: tesvor.clean_room_with_preset
     metadata: {}
     data:
       use_preset: true
       room: Кухня
     target:
-      entity_id: vacuum.neatsvor_<device_id>_vacuum
+      entity_id: vacuum.tesvor_<device_id>_vacuum
 alias: Уборка кухни
 description: Запустить уборку на кухне
 ```
@@ -186,24 +140,24 @@ yandex_smart_home:
 
 | Service | Description |
 |---------|-------------|
-| `neatsvor.vacuum_clean_zone` | Запустить зональную уборку |
-| `neatsvor.clean_room_with_preset` | Убрать комнату с использованием сохранённых пресетов |
-| `neatsvor.set_reference_map` | Установить текущую карту как эталонную |
-| `neatsvor.restore_reference_map` | Восстановить конфигурацию комнат из эталонной карты |
-| `neatsvor.compare_with_reference` | Сравнить текущую карту с эталонной |
-| `neatsvor.request_all_data` | Запросить все данные, как в официальном приложении |
-| `neatsvor.request_map` | Запросить текущую карту |
-| `neatsvor.build_map` | Быстрое построение карты без уборки |
-| `neatsvor.empty_dust` | Принудительно очистить контейнер для пыли |
-| `neatsvor.use_cloud_map` | Использовать конкретную облачную карту в качестве текущей |
-| `neatsvor.use_selected_cloud_map` | Использовать выбранную облачную карту в качестве текущей |
-| `neatsvor.force_load_history` | Принудительно загрузить все карты истории уборок |
-| `neatsvor.cleanup_maps` | Удалить старые карты уборки реального времени и их метаданные |
-| `neatsvor.cleanup_history_maps` | Очистить старые карты истории |
-| `neatsvor.cleanup_all_except_current` | Удалить все карты истории, кроме текущей |
-| `neatsvor.force_update_maps` | Принудительно обновить все сенсоры карт |
-| `neatsvor.save_select_states` | Сохранить текущие состояния select-сущностей |
-| `neatsvor.restore_select_states` | Восстановить сохранённые состояния select-сущностей |
+| `tesvor.vacuum_clean_zone` | Запустить зональную уборку |
+| `tesvor.clean_room_with_preset` | Убрать комнату с использованием сохранённых пресетов |
+| `tesvor.set_reference_map` | Установить текущую карту как эталонную |
+| `tesvor.restore_reference_map` | Восстановить конфигурацию комнат из эталонной карты |
+| `tesvor.compare_with_reference` | Сравнить текущую карту с эталонной |
+| `tesvor.request_all_data` | Запросить все данные, как в официальном приложении |
+| `tesvor.request_map` | Запросить текущую карту |
+| `tesvor.build_map` | Быстрое построение карты без уборки |
+| `tesvor.empty_dust` | Принудительно очистить контейнер для пыли |
+| `tesvor.use_cloud_map` | Использовать конкретную облачную карту в качестве текущей |
+| `tesvor.use_selected_cloud_map` | Использовать выбранную облачную карту в качестве текущей |
+| `tesvor.force_load_history` | Принудительно загрузить все карты истории уборок |
+| `tesvor.cleanup_maps` | Удалить старые карты уборки реального времени и их метаданные |
+| `tesvor.cleanup_history_maps` | Очистить старые карты истории |
+| `tesvor.cleanup_all_except_current` | Удалить все карты истории, кроме текущей |
+| `tesvor.force_update_maps` | Принудительно обновить все сенсоры карт |
+| `tesvor.save_select_states` | Сохранить текущие состояния select-сущностей |
+| `tesvor.restore_select_states` | Восстановить сохранённые состояния select-сущностей |
 
 ## Пример автоматизации: Уведомления о статусе
 
@@ -222,18 +176,18 @@ yandex_smart_home:
 2. Замените переменные-заполнители на свои названия сущностей и персональные данные.
 3. Вставьте автоматизацию в файл `automations.yaml` или создайте её через интерфейс Home Assistant.
 
-[📄 Скачать пример автоматизации](SAMPLE_automation_neatsvor_status.yaml)
+[📄 Скачать пример автоматизации](SAMPLE_automation_tesvor_status.yaml)
 
 ### Необходимые сущности
 
-Убедитесь, что у вас есть следующие сенсоры из интеграции Neatsvor:
+Убедитесь, что у вас есть следующие сенсоры из интеграции Tesvor:
 
-- `sensor.neatsvor_<device_id>_status` — текущий статус пылесоса.
-- `sensor.neatsvor_<device_id>_clean_history` — записи истории уборок.
-- `sensor.neatsvor_<device_id>_map_data` — данные карты с атрибутом `map_path`.
-- `sensor.neatsvor_<device_id>_current_clean_time` — текущее время уборки.
-- `sensor.neatsvor_<device_id>_current_clean_area` — текущая площадь уборки.
-- `sensor.neatsvor_<device_id>_battery` — уровень заряда батареи.
+- `sensor.tesvor_<device_id>_status` — текущий статус пылесоса.
+- `sensor.tesvor_<device_id>_clean_history` — записи истории уборок.
+- `sensor.tesvor_<device_id>_map_data` — данные карты с атрибутом `map_path`.
+- `sensor.tesvor_<device_id>_current_clean_time` — текущее время уборки.
+- `sensor.tesvor_<device_id>_current_clean_area` — текущая площадь уборки.
+- `sensor.tesvor_<device_id>_battery` — уровень заряда батареи.
 
 ### Настройка
 
@@ -244,38 +198,32 @@ variables:
   # ========== ПЕРСОНАЛЬНЫЕ ДАННЫЕ (ЗАМЕНИТЕ НА СВОИ) ==========
   external_url: "https://ВАШ-ДОМЕН.duckdns.org:8123"       # URL вашего Home Assistant
   mobile_notify_service: "notify.mobile_app_ВАШЕ_УСТРОЙСТВО" # Ваш сервис уведомлений
-  
+
   # ========== ИМЕНА СУЩНОСТЕЙ (ЗАМЕНИТЕ НА СВОИ) ==========
-  vacuum_status_entity: "sensor.neatsvor_<device_id>_status"
-  vacuum_clean_history: "sensor.neatsvor_<device_id>_clean_history"
-  vacuum_map_data: "sensor.neatsvor_<device_id>_map_data"
-  vacuum_clean_time: "sensor.neatsvor_<device_id>_current_clean_time"
-  vacuum_clean_area: "sensor.neatsvor_<device_id>_current_clean_area"
-  vacuum_battery: "sensor.neatsvor_<device_id>_battery"
+  vacuum_status_entity: "sensor.tesvor_<device_id>_status"
+  vacuum_clean_history: "sensor.tesvor_<device_id>_clean_history"
+  vacuum_map_data: "sensor.tesvor_<device_id>_map_data"
+  vacuum_clean_time: "sensor.tesvor_<device_id>_current_clean_time"
+  vacuum_clean_area: "sensor.tesvor_<device_id>_current_clean_area"
+  vacuum_battery: "sensor.tesvor_<device_id>_battery"
 ```
 
 ## Поддерживаемые устройства
-### Neatsvor 
-  - [S700](https://neatsvor.ru/product/productDetail?spuId=28)
-  - [N7](https://neatsvor.ru/product/productDetail?spuId=40)
-
-### BlackVision
-  - Другие устройства платформы BlackVision (тестируются)
-
-### JoyLife
-  - Устройства под управлением JoyLife (тестируются)
+### Tesvor
+  - [S700](https://tesvor.ru/product/productDetail?spuId=28)
+  - [N7](https://tesvor.ru/product/productDetail?spuId=40)
 
 ## Устранение неполадок
 
 ### Ошибка аутентификации
 - Проверьте правильность email и пароля
-- Убедитесь, что выбран правильный регион (RU/CN/DE)
-- Проверьте, что выбрано правильное приложение
+- Убедитесь, что выбран правильный телефонный код страны
+- Проверьте, что аккаунт работает в приложении Tesvor Home
 
 ### Не отображается карта
 - Убедитесь, что робот завершил хотя бы одну уборку
 - Проверьте подключение к MQTT в логах
-- Попробуйте вызвать сервис `neatsvor.request_map`
+- Попробуйте вызвать сервис `tesvor.request_map`
 
 ### Зональная уборка не работает
 - Убедитесь, что установлена xiaomi-vacuum-map-card
@@ -287,7 +235,7 @@ variables:
 - Убедитесь, что брандмауэр не блокирует подключения к MQTT-серверам BlackVision
 
 ### Логи
-Логи можно посмотреть в **Настройки → Система → Логи** → выбрать `custom_components.neatsvor`
+Логи можно посмотреть в **Настройки → Система → Логи** → выбрать `custom_components.tesvor`
 
 ## Известные ограничения
 - Координаты зональной уборки автоматически корректируются с учётом смещения начала координат карты
@@ -296,7 +244,7 @@ variables:
 
 ## Вклад в развитие
 Если вы нашли ошибку или хотите предложить улучшение:
-1. Создайте [Issue](https://github.com/CoderAS-ru/hass-neatsvor/issues) на GitHub
+1. Создайте [Issue](https://github.com/CoderAS-ru/hass-tesvor/issues) на GitHub
 2. Отправьте Pull Request с вашими изменениями
 
 ## Благодарности
@@ -326,10 +274,9 @@ variables:
 
 ### Юридическая информация
 
-Интеграция создана в образовательных целях и для сообщества Home Assistant. Разработчик не связан с компаниями BlackVision или Neatsvor. Все товарные знаки принадлежат их законным владельцам.
+Интеграция создана в образовательных целях и для сообщества Home Assistant. Разработчик не связан с компаниями BlackVision или Tesvor. Все товарные знаки принадлежат их законным владельцам.
 
 **Примечание**: Интеграция не модифицирует прошивку устройств, не обходит системы защиты и не нарушает условия использования официальных приложений.
 
 ## Лицензия
 MIT License - свободное использование, модификация и распространение
-

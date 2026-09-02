@@ -1,6 +1,6 @@
-# Neatsvor Integration
+# Tesvor Integration
 
-Управление пылесосами Neatsvor и Black Vision в Home Assistant.
+Управление пылесосами из приложения Tesvor Home в Home Assistant.
 
 ## Скриншоты
 <pre>

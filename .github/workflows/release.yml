@@ -31,20 +31,20 @@ jobs:
           python3 << EOF
           import json
           
-          with open("custom_components/neatsvor/manifest.json", "r") as f:
+          with open("custom_components/tesvor/manifest.json", "r") as f:
               manifest = json.load(f)
           
           manifest["version"] = "$VERSION"
           
-          with open("custom_components/neatsvor/manifest.json", "w") as f:
+          with open("custom_components/tesvor/manifest.json", "w") as f:
               json.dump(manifest, f, indent=2)
           
           print("✅ Updated manifest.json")
           EOF
           
           # Обновляем __version__.py
-          cat > custom_components/neatsvor/__version__.py << EOF
-          \"\"\"Version information for Neatsvor integration.\"\"\"
+          cat > custom_components/tesvor/__version__.py << EOF
+          \"\"\"Version information for Tesvor integration.\"\"\"
           
           __version__ = "$VERSION"
           __release_date__ = "$DATE"
@@ -54,28 +54,28 @@ jobs:
           
           # Показываем изменения
           echo "---"
-          cat custom_components/neatsvor/manifest.json
+          cat custom_components/tesvor/manifest.json
           echo "---"
-          cat custom_components/neatsvor/__version__.py
+          cat custom_components/tesvor/__version__.py
 
       - name: Create ZIP archive
         run: |
-          cd custom_components/neatsvor
-          zip -r ../neatsvor.zip ./
+          cd custom_components/tesvor
+          zip -r ../tesvor.zip ./
           cd ../..
-          echo "✅ Created neatsvor.zip"
+          echo "✅ Created tesvor.zip"
           
           # Показываем содержимое ZIP для проверки
-          unzip -l custom_components/neatsvor.zip | head -20
+          unzip -l custom_components/tesvor.zip | head -20
 
       - name: Upload ZIP to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: custom_components/neatsvor.zip
-          asset_name: neatsvor.zip
+          file: custom_components/tesvor.zip
+          asset_name: tesvor.zip
           tag: ${{ github.ref }}
           overwrite: true
 
       - name: Clean up
-        run: rm -f custom_components/neatsvor.zip
+        run: rm -f custom_components/tesvor.zip
