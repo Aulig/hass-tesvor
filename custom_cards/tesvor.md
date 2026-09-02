@@ -1,6 +1,8 @@
 # Tesvor
 
-This platform can be used to control Tesvor vacuums connected to Home Assistant using the [Tesvor integration](https://github.com/CoderAS-ru/hass-tesvor).
+This platform can be used to control Tesvor vacuums connected to Home Assistant using the [Tesvor integration](https://github.com/Aulig/hass-tesvor).
+
+The Tesvor integration is experimental. Login and device discovery are validated, but card actions and map-changing commands still require testing on individual Tesvor models.
 
 ## Available templates
 
@@ -111,13 +113,9 @@ icons:
     available_values_attribute: options
     icon_mapping:
       quiet: mdi:fan-speed-1
-      Тихий: mdi:fan-speed-1
       normal: mdi:fan-speed-2
-      Обычный: mdi:fan-speed-2
       strong: mdi:fan-speed-3
-      Сильный: mdi:fan-speed-3
       max: mdi:fan-plus
-      Максимальный: mdi:fan-plus
     tap_action:
       action: call-service
       service: select.select_option
@@ -132,11 +130,8 @@ icons:
     available_values_attribute: options
     icon_mapping:
       low: mdi:water-minus
-      Низкий: mdi:water-minus
       middle: mdi:water
-      Средний: mdi:water
       high: mdi:water-plus
-      Высокий: mdi:water-plus
     tap_action:
       action: call-service
       service: select.select_option
@@ -151,11 +146,8 @@ icons:
     available_values_attribute: options
     icon_mapping:
       sweep: mdi:broom
-      Только подмести: mdi:broom
       mop: mdi:spray
-      Только мыть: mdi:spray
       sweepMop: mdi:vacuum-outline
-      Подмести и вымыть: mdi:vacuum-outline
     tap_action:
       action: call-service
       service: select.select_option
@@ -238,21 +230,13 @@ additional_presets:
         entity: select.your_tesvor_room_select
         available_values_attribute: options
         icon_mapping:
-          Коридор: mdi:wardrobe
           Hallway: mdi:wardrobe
-          Гостиная: mdi:sofa
           Living room: mdi:sofa
-          Детская: mdi:bed
-          Childish: mdi:bed
-          Кухня: mdi:fridge
+          Child's room: mdi:bed
           Kitchen: mdi:fridge
-          Спальня: mdi:bed
           Bedroom: mdi:bed
-          Ванная: mdi:shower
           Bathroom: mdi:shower
-          Туалет: mdi:toilet
           Toilet: mdi:toilet
-          Кабинет: mdi:desk
           Office: mdi:desk
         tap_action:
           action: call-service
@@ -452,4 +436,4 @@ grid_options:
 ## Additional configuration
 The Tesvor platform supports tiles for maintenance status, cleaning statistics, and menu icons for fan speed, water level, and cleaning mode. These will appear automatically if the corresponding sensors are available.
 
-For more information about the integration, visit the [Tesvor integration](https://github.com/CoderAS-ru/hass-tesvor) repository.
+For more information about the integration, visit the [Tesvor integration](https://github.com/Aulig/hass-tesvor) repository.

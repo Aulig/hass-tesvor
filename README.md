@@ -1,252 +1,140 @@
-# Tesvor Integration for Home Assistant
+# Tesvor Home integration for Home Assistant
 
-[![EN](https://img.shields.io/badge/English-blue)](README.md)
-[![RU](https://img.shields.io/badge/Русский-red)](README_ru.md)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/docs/faq/custom_repositories)
 [![GitHub Release](https://img.shields.io/github/v/release/Aulig/hass-tesvor)](https://github.com/Aulig/hass-tesvor/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Control robot vacuums registered in the [Tesvor Home](https://play.google.com/store/apps/details?id=com.teasvor.home) app from Home Assistant. This Tesvor-specific fork is based on [hass-neatsvor](https://github.com/CoderAS-ru/hass-neatsvor).
+Control robot vacuums registered in the [Tesvor Home](https://play.google.com/store/apps/details?id=com.teasvor.home) app from Home Assistant. This experimental Tesvor-specific fork is based on [hass-neatsvor](https://github.com/CoderAS-ru/hass-neatsvor).
 
-<pre>
-<img height="400" alt="image 1" src="https://github.com/user-attachments/assets/6419f86e-c2d4-4ad0-9c87-4f2353e58050" /> <img height="400" alt="image 2" src="https://github.com/user-attachments/assets/9ac0f6e0-51f0-4c3e-8b10-6ff4e5e7264c" /> <img height="400" alt="image 3" src="https://github.com/user-attachments/assets/074ffd55-1ffa-4e4f-979d-6359d8c845ec" /> <img height="400" alt="image 4" src="https://github.com/user-attachments/assets/512a0f42-579d-4dc6-a25d-46958b33481d" /> <img height="400" alt="image 5" src="https://github.com/user-attachments/assets/1b3a7ea5-862f-4392-ac62-f80aa16cabd2" />
-</pre>
+## Project status
 
-## Features
+The Tesvor Home application identity, German (`+49`) login flow, account discovery, device discovery, and dynamic Data Point (DP) schema retrieval have been validated against a real Tesvor Home account.
 
-- 🎮 **Full Control:** Start, pause, stop cleaning, return to dock
-- 🗺️ **Live Map:** Display the room map with the robot's real-time position
-- 📍 **Zone Cleaning:** Select a zone on the map for cleaning (requires [lovelace-xiaomi-vacuum-map-card](https://github.com/PiotrMachowski/lovelace-xiaomi-vacuum-map-card))
-- 🧹 **Room Cleaning:** Ability to clean individual rooms by name
-- 💧 **Water Level Adjustment** (for mopping models)
-- 💨 **Suction Power Adjustment**
-- 📊 **Sensors:** Status, battery charge, cleaning time/area
-- 🔄 **Consumables:** Display the wear level of the filter and brushes
-- 📸 **Cleaning History:** Save and view maps from previous cleanings
-- ☁️ **Cloud Maps:** Download and use maps saved in the cloud
-- 🌐 **Localization:** Support for Russian and English
+The following features are implemented but have not yet been fully tested on Tesvor hardware:
 
-### Smart Home with Alice (Yandex)
+- Start, pause, stop, locate, and return to dock
+- Suction power, water level, and cleaning mode controls when exposed by the model
+- Live maps, room cleaning, and zone cleaning
+- Cloud-map selection, download, activation, and restoration
+- Cleaning-history maps and consumable statistics
 
-- 📱 **Voice Control:** Manage and monitor from the "Smart Home with Alice" app (requires [yandex_smart_home](https://github.com/dext0r/yandex_smart_home))
-- 🔋 **Battery Status:** Display battery level in the Alice Smart Home app
-- 📊 **Sensors in the App:** Access digital sensor values within the Alice Smart Home app
+Availability depends on the capabilities advertised by the vacuum. Until individual models have been tested, no specific model is claimed as fully supported. Please report the model, action, and relevant Home Assistant logs when opening an issue.
 
 ## Installation
 
-### Via HACS (Recommended)
+### HACS (recommended)
 
 1. Open **HACS → Integrations**.
 2. Open the menu in the top-right corner and select **Custom repositories**.
 3. Add `https://github.com/Aulig/hass-tesvor` with the category **Integration**.
-4. Find and download the "Tesvor" integration in HACS.
+4. Find and download **Tesvor** in HACS.
 5. Restart Home Assistant.
 
-### Manual Installation
+### Manual installation
 
-- Copy the `custom_components/tesvor` folder to your `config/custom_components/`
-- Restart Home Assistant
+Copy `custom_components/tesvor` into `config/custom_components/tesvor`, then restart Home Assistant.
 
 ## Configuration
 
-### Adding the Integration via UI
+1. Open **Settings → Devices & services**.
+2. Select **Add integration**, then choose **Tesvor**.
+3. Enter the calling code used by your Tesvor Home account, such as `+49` or `49` for Germany.
+4. Enter the email address and password used in the Tesvor Home app.
 
-- Go to **Settings → Devices & Services**
-- Click **"+ Add Integration"**
-- Find and select "Tesvor"
-- Enter the **phone code** (country/region) used by your Tesvor Home account (for example, "+49" or "49")
-- Enter your **Tesvor Home email** and **password**
-- Complete the setup
+The integration uses Tesvor's cloud API and MQTT broker. If updates stop while the mobile app is open, close the app and reload the integration; concurrent sessions may interfere with one another.
 
-### Account Requirements
+## Controls and entities
 
-- Create an account in Tesvor Home and pair your device if you haven't already
-- Important rule: **One account - one connection**
-- For control from multiple devices, use the **"Share Device"** function in the app
+The primary vacuum entity advertises start, pause, stop, locate, return-to-dock, and fan-speed actions. Additional select entities are created from the model's reported DP schema. Map buttons are currently created for every device, but a command can still fail when its required DP or map data is unavailable on that model.
 
-## Usage
+### Map buttons
 
-### Zone Cleaning
+Cloud-map actions use the current value of the **Cloud Map Select** entity unless stated otherwise.
 
-To use zone cleaning, you need to install `lovelace-xiaomi-vacuum-map-card`:
+| Button | What it does | Risk/notes |
+|---|---|---|
+| **Refresh Cloud Maps** | Fetches the cloud-map list again and refreshes its Home Assistant sensor. | Read-only. |
+| **Download Map** | Downloads and renders the selected cloud map into Home Assistant's local map cache. | Read-only for the robot. Selecting a map may already trigger background download, so this is mainly a manual retry. |
+| **Set Reference Map** | Marks the selected cloud map as the reference used by restore and auto-restore. | Local Home Assistant state only; the selection is currently lost when the integration restarts. It does not change the robot by itself. |
+| **Restore Reference Map** | Sends the locally marked reference map to the robot and requests a fresh live map. | Changes the robot's active map. Set a reference first. |
+| **Save Current Map** | Sends the robot's `map_save` command, asking it to save its current map to the cloud. | Changes cloud map state and is not yet verified on Tesvor hardware. |
+| **Use Selected Map** | Activates the selected cloud map on the robot, then requests a refreshed live map. | Changes the robot's active map; use this mainly to switch or recover maps/floors. |
+| **Refresh Clean History** | Loads up to ten recent cleaning records and renders their maps locally. | Read-only for the robot, but may take a few minutes and use local storage. |
+
+The **Cloud Map Camera** only previews the selected cloud map. Selecting or downloading a map does not activate it on the robot; **Use Selected Map** does.
+
+### Zone cleaning card
+
+Zone cleaning can be used with [Xiaomi Vacuum Map Card](https://github.com/PiotrMachowski/lovelace-xiaomi-vacuum-map-card):
+
 ```yaml
 type: custom:xiaomi-vacuum-map-card
-entity: vacuum.tesvor_vacuum
+entity: vacuum.tesvor_<device_id>_vacuum
 map_source:
-  camera: camera.tesvor_<device_id>_live_camera
+  camera: camera.tesvor_<device_id>_live_map
 calibration_source:
   identity: true
-zones:
-  service: tesvor.vacuum_clean_zone
-  service_data:
-    entity_id: vacuum.tesvor_vacuum
-    zones: "[[x1, y1, x2, y2, 1]]"
+map_modes:
+  - template: vacuum_clean_zone
 ```
 
-### Voice Cleaning of Individual Rooms
-1. Go to **Settings → Automations & Scenes → Scripts**
-2. Click **"Create Script" → "Create new script" → "Add Action"**
-3. In the search field, type **'tesvor'**
-4. Select the action **'Tesvor: Clean room with preset'**
-5. Specify:
-   - **Targets → Add target**: Select your robot vacuum
-   - **Room name: The exact name of the room (case-sensitive!)**
-   - **Toggle 'Use Preset' should be ON!** (This uses your saved settings for that room)
-6. Click **'Save'**
-7. Enter a name for the script (e.g., Clean Kitchen)
-8. Optionally, add a description, area, and icon.
-
-In YAML mode:
-```yaml
-sequence:
-  - action: tesvor.clean_room_with_preset
-    metadata: {}
-    data:
-      use_preset: true
-      room: Kitchen
-    target:
-      entity_id: vacuum.tesvor_<device_id>_vacuum
-alias: Clean Kitchen
-description: Start cleaning the kitchen
-```
-
-After creating the script, you need to expose it to Yandex Smart Home via the yandex_smart_home integration configuration.
-After this, you can use voice commands in the "Smart Home with Alice" app:
-  - _"Alice, turn on the kitchen cleaning"_
-  - _"Alice, turn off the living room cleaning"_
+The bundled card template calls `tesvor.vacuum_clean_zone` and converts selected rectangles using the live map's origin and scale.
 
 ## Services
 
+These advanced actions are available under the `tesvor` domain. Map-changing commands should be tested cautiously on each model.
+
 | Service | Description |
-|---------|-------------|
-| `tesvor.vacuum_clean_zone` | Start zone cleaning |
-| `tesvor.clean_room_with_preset` | Clean a room using saved presets |
-| `tesvor.set_reference_map` | Set the current map as reference |
-| `tesvor.restore_reference_map` | Restore room config from reference map |
-| `tesvor.compare_with_reference` | Compare current map with reference |
-| `tesvor.request_all_data` | Request all data like the official app |
-| `tesvor.request_map` | Request the current map |
-| `tesvor.build_map` | Fast map build without cleaning |
-| `tesvor.empty_dust` | Force empty the dust bin |
-| `tesvor.use_cloud_map` | Use a specific cloud map as current |
-| `tesvor.use_selected_cloud_map` | Use the selected cloud map as current |
-| `tesvor.force_load_history` | Force-load all cleaning history maps |
-| `tesvor.cleanup_maps` | Remove old realtime maps and metadata |
-| `tesvor.cleanup_history_maps` | Clean up old history maps |
-| `tesvor.cleanup_all_except_current` | Clean up all history maps except current |
-| `tesvor.force_update_maps` | Force-refresh all map-related sensors |
-| `tesvor.save_select_states` | Save current select-entity states |
-| `tesvor.restore_select_states` | Restore saved select-entity states |
-
-## Example Automation: Status Notifications
-
-This example automation sends you notifications about your vacuum's status, including a map preview when an error occurs. It supports both persistent notifications in the Home Assistant UI and push notifications to your mobile device.
-
-### Features
-
-- 🔔 **Start/Pause/Return notifications** — get alerted when the vacuum starts, pauses, or returns to the dock.
-- ✅ **Cleaning summary** — receive a report with cleaning time, area, battery level, and a link to the map.
-- ⚠️ **Error alerts** — get a critical notification with the map showing the robot's last position.
-- 🔋 **Charging status** — notifications when the vacuum is fully charged.
-
-### How to use
-
-1. Copy the automation code from the link below.
-2. Replace the placeholder variables with your own entity names and personal details.
-3. Paste the automation into your `automations.yaml` file or create it via the Home Assistant UI.
-
-[📄 Download the automation example](SAMPLE_automation_tesvor_status.yaml)
-
-### Required entities
-
-Make sure you have the following sensors from the Tesvor integration:
-
-- `sensor.tesvor_<device_id>_status` — current vacuum status.
-- `sensor.tesvor_<device_id>_clean_history` — cleaning history records.
-- `sensor.tesvor_<device_id>_map_data` — map data with the `map_path` attribute.
-- `sensor.tesvor_<device_id>_current_clean_time` — current cleaning time.
-- `sensor.tesvor_<device_id>_current_clean_area` — current cleaning area.
-- `sensor.tesvor_<device_id>_battery` — battery level.
-
-### Customization
-
-You can easily customize the automation by modifying the variables at the top of the script:
-
-```yaml
-variables:
-  # ========== PERSONAL DATA (REPLACE WITH YOUR OWN) ==========
-  external_url: "https://YOUR-DOMAIN.duckdns.org:8123"    # Your Home Assistant URL
-  mobile_notify_service: "notify.mobile_app_YOUR_DEVICE" # Your mobile notification service
-
-  # ========== ENTITY NAMES (REPLACE WITH YOUR OWN) ==========
-  vacuum_status_entity: "sensor.tesvor_<device_id>_status"
-  vacuum_clean_history: "sensor.tesvor_<device_id>_clean_history"
-  vacuum_map_data: "sensor.tesvor_<device_id>_map_data"
-  vacuum_clean_time: "sensor.tesvor_<device_id>_current_clean_time"
-  vacuum_clean_area: "sensor.tesvor_<device_id>_current_clean_area"
-  vacuum_battery: "sensor.tesvor_<device_id>_battery"
-```
-
-## Supported Devices
-### Tesvor
-  - [S700](https://tesvor.ru/product/productDetail?spuId=28)
-  - [N7](https://tesvor.ru/product/productDetail?spuId=40)
+|---|---|
+| `tesvor.vacuum_clean_zone` | Clean one or more rectangular zones. |
+| `tesvor.clean_room_with_preset` | Clean a named room, optionally using its saved settings. |
+| `tesvor.request_all_data` | Request the current set of device DPs. |
+| `tesvor.request_map` | Request a fresh live map. |
+| `tesvor.build_map` | Ask the robot to perform its fast map-building operation. |
+| `tesvor.empty_dust` | Ask a compatible dock to empty the dust bin. |
+| `tesvor.set_reference_map` | Ask the robot to save its current map as its reference map. |
+| `tesvor.restore_reference_map` | Activate the locally selected reference cloud map. |
+| `tesvor.compare_with_reference` | Compare basic metadata for the selected and reference maps. |
+| `tesvor.use_cloud_map` | Activate a cloud map using explicit ID, URL, and MD5 values. |
+| `tesvor.use_selected_cloud_map` | Activate the map chosen in Cloud Map Select. |
+| `tesvor.force_load_history` | Download and render recent cleaning-history maps. |
+| `tesvor.cleanup_maps` | Remove older locally cached real-time maps. |
+| `tesvor.cleanup_history_maps` | Remove older locally cached history maps. |
+| `tesvor.cleanup_all_except_current` | Remove all locally cached history maps except the selected one. |
+| `tesvor.force_update_maps` | Refresh map-related entities. |
+| `tesvor.save_select_states` | Persist the integration's current select values. |
+| `tesvor.restore_select_states` | Restore previously persisted select values. |
 
 ## Troubleshooting
-### Authentication Error
-- Check your email and password
-- Ensure the correct phone code is selected
-- Verify that the account works in the Tesvor Home app
 
-### Map Not Displayed
-- Make sure the robot has completed at least one cleaning
-- Check the MQTT connection in the logs
-- Try calling the tesvor.request_map service
+### Authentication errors
 
-### Zone Cleaning Doesn't Work
-- Ensure xiaomi-vacuum-map-card is installed
-- Check that the map is displayed correctly
-- Make sure the robot is not on the dock
+- Verify the same credentials in the Tesvor Home app.
+- Use the calling code associated with the account, not necessarily the current physical location.
+- For Germany, both `+49` and `49` are accepted.
 
-### MQTT Issues
-- Ensure outgoing connections to port 8011 are allowed in your network
-- Check that a firewall isn't blocking connections to the BlackVision MQTT servers
+### Missing or stale maps
 
-### Logs
-Logs can be viewed at **Settings → System → Logs** → select custom_components.tesvor.
+- Complete at least one mapping or cleaning run in the Tesvor Home app.
+- Check **Settings → System → Logs** for `custom_components.tesvor` and MQTT errors.
+- Run `tesvor.request_map` for the affected vacuum.
+- Refresh the cloud-map list before downloading or activating a saved map.
 
-## Known Limitations
-- Zone cleaning coordinates are automatically adjusted for the map's origin offset
-- Map editing (splitting/merging rooms) is not implemented
-- Using multiple apps simultaneously requires separate integration instances
+The integration requires outbound access to Tesvor/BlackVision HTTPS services and MQTT port `8011`.
 
-## Contributing
-If you find a bug or want to suggest an improvement:
-1. Create an Issue on GitHub
-2. Submit a Pull Request with your changes
+## Known limitations
 
-## Technical Details
-### How the Integration Works
-This integration uses **reverse-engineering** of the official mobile app to fully understand the data exchange protocol with the devices.
+- Physical commands and map mutation have not yet been validated across Tesvor models.
+- Map editing, including room splitting and merging, is not implemented.
+- The reference-map button stores its choice only in memory and must be set again after an integration or Home Assistant restart.
+- The integration depends on undocumented cloud and MQTT protocols that may change without notice.
 
-**Key implementation features:**
+## Technical details
 
-- 🔍 **Dynamic DP Schema**: The integration retrieves the current Data Point schema for your specific vacuum model directly from the cloud.
-- 📡 **Native MQTT Protocol**: Direct interaction with the device via the MQTT broker, just like the official app.
-- 🗺️ **Full Map Support**: Decoding of the proprietary map format.
-- 🔄 **Up-to-Date**: When new models or functions are added to the app, the integration automatically supports them (if they use existing DPs).
+The integration uses the application identity from Tesvor Home 1.8.2, discovers the account's regional endpoints, retrieves each device's DP schema, and communicates through the same BlackVision cloud and MQTT infrastructure used by the app. Dynamic schema discovery helps expose model-specific values, but it does not guarantee that every future DP or device behavior is supported.
 
-### Why This Matters
-By retrieving the DP schema from the cloud, the integration:
-- Supports all vacuum models without needing an update for each one
-- Automatically obtains new device capabilities
-- Correctly displays all sensors and settings for your specific model
-
-### Legal Information
-
-This integration was created for educational purposes and for the Home Assistant community. The developer is not affiliated with BlackVision or Tesvor. All trademarks are the property of their respective owners.
-
-> **Note**: This integration does not modify device firmware, bypass security systems, or violate the terms of use of the official applications.
+This project is not affiliated with Tesvor or BlackVision. Tesvor and related marks belong to their respective owners.
 
 ## License
-MIT License - free use, modification, and distribution.
+
+MIT
