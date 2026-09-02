@@ -1,5 +1,7 @@
 # Tesvor Integration
 
+[Repository](https://github.com/Aulig/hass-tesvor)
+
 Управление пылесосами из приложения Tesvor Home в Home Assistant.
 
 ## Скриншоты

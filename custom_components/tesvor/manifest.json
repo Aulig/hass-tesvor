@@ -2,13 +2,14 @@
   "domain": "tesvor",
   "name": "Tesvor",
   "codeowners": [
-    "@CoderAS-ru"
+    "@Aulig"
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://play.google.com/store/apps/details?id=com.teasvor.home",
+  "documentation": "https://github.com/Aulig/hass-tesvor",
   "integration_type": "device",
   "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/Aulig/hass-tesvor/issues",
   "loggers": [
     "custom_components.tesvor"
   ],

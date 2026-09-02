@@ -2,6 +2,8 @@
 
 [![EN](https://img.shields.io/badge/English-blue)](README.md)
 [![RU](https://img.shields.io/badge/Русский-red)](README_ru.md)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/docs/faq/custom_repositories)
+[![GitHub Release](https://img.shields.io/github/v/release/Aulig/hass-tesvor)](https://github.com/Aulig/hass-tesvor/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Control robot vacuums registered in the [Tesvor Home](https://play.google.com/store/apps/details?id=com.teasvor.home) app from Home Assistant. This Tesvor-specific fork is based on [hass-neatsvor](https://github.com/CoderAS-ru/hass-neatsvor).
