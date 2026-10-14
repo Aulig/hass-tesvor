@@ -119,7 +119,7 @@ class TesvorVacuum:
         self._dp_callbacks: List[Callable[[List], Awaitable[None]]] = []
 
         self._initialized = False
-        self._connected = False
+        self._mqtt_task: Optional[asyncio.Task] = None
 
     # ------------------------------------------------------------------
     # Initialization and connection
@@ -225,17 +225,11 @@ class TesvorVacuum:
             if getattr(self, '_test_mode', False):
                 _LOGGER.info("Test mode enabled, skipping background MQTT and data tasks")
             else:
-                asyncio.create_task(self._connect_mqtt_async())
+                self._mqtt_task = asyncio.create_task(self._connect_mqtt())
                 _LOGGER.debug("MQTT connection task created")
 
             self._initialized = True
-            self._connected = True
             _LOGGER.info("Basic initialization complete, DP Manager ready")
-
-            # 7. Request initial data in background (только если не тестовый режим)
-            if not getattr(self, '_test_mode', False):
-                asyncio.create_task(self._request_initial_data())
-                _LOGGER.debug("Initial data request task created")
 
             return True
 
@@ -243,48 +237,6 @@ class TesvorVacuum:
             _LOGGER.error("Initialization error: %s", e)
             await self.disconnect()
             raise
-
-    async def _connect_mqtt_async(self):
-        """Connect MQTT in background."""
-        try:
-            _LOGGER.info("Background MQTT connection...")
-            await self._connect_mqtt()
-            _LOGGER.info("MQTT connected in background")
-        except Exception as e:
-            _LOGGER.error("Background MQTT error: %s", e)
-
-    async def _request_initial_data(self):
-        """Request initial data in background with retry."""
-        try:
-            _LOGGER.info("Background data request...")
-
-            # Ждём готовности MQTT командера
-            for attempt in range(10):
-                if self._command_sender and self._connected:
-                    break
-                _LOGGER.debug("Waiting for MQTT command sender (attempt %s/10)", attempt + 1)
-                await asyncio.sleep(1)
-            else:
-                _LOGGER.warning("MQTT command sender not ready after 10 seconds, will retry later")
-                # Запланировать повторную попытку
-                asyncio.create_task(self._retry_initial_data())
-                return
-
-            # Небольшая задержка перед запросом
-            await asyncio.sleep(2)
-            await self.request_all_data()
-            _LOGGER.info("Initial data requested")
-        except Exception as e:
-            _LOGGER.error("Data request error: %s", e)
-
-    async def _retry_initial_data(self):
-        """Retry initial data request after delay."""
-        await asyncio.sleep(10)
-        if self._command_sender and self._connected:
-            await self.request_all_data()
-            _LOGGER.info("Initial data requested on retry")
-        else:
-            _LOGGER.warning("Still cannot request initial data after retry")
 
     async def _connect_mqtt(self) -> None:
         """Internal method for MQTT connection."""
@@ -294,9 +246,9 @@ class TesvorVacuum:
             port=self.config.mqtt.port,
             username=self.config.mqtt.username,
             password=self.config.mqtt.password,
-            client_id=f"APP_{self.info.client_id}"
+            client_id=f"APP_{self.info.client_id}",
+            on_connect=self.request_all_data,
         )
-        await self.mqtt.connect()
 
         # Message router
         self.router = MqttMessageRouter(
@@ -310,14 +262,14 @@ class TesvorVacuum:
         self.router.register_state_callback(self._on_state_data)
         self.router.register_dp_callback(self._on_dp_data)
 
-        # Subscribe to topics
+        # Remember subscriptions before connecting so no initial messages are lost.
         await self.router.subscribe_to_device_topics(self.mqtt)
 
         # Create encoder
         self._encoder = TesvorEncoder.from_dp_manager(
             device_mac=self.info.mac,
             dp_manager=self.dp_manager,
-            login_name='appuser',
+            login_name="appuser",
             version=1
         )
 
@@ -328,45 +280,23 @@ class TesvorVacuum:
             command_delay=self.config.device.command_delay
         )
 
+        # Request initial data after connecting, and again after every reconnect.
+        await self.mqtt.connect()
         _LOGGER.info("MQTT connected and configured")
-
-    async def _on_mqtt_disconnect(self):
-        """Handle MQTT disconnection and reconnect."""
-        _LOGGER.warning("MQTT disconnected, attempting to reconnect...")
-        self._connected = False
-
-        for attempt in range(5):
-            try:
-                # Exponential backoff: 2, 4, 8, 16, 32 seconds
-                wait_time = 2 ** attempt
-                _LOGGER.info("MQTT reconnect attempt %s/5 in %ss...", attempt + 1, wait_time)
-                await asyncio.sleep(wait_time)
-
-                # Try to reconnect
-                if self.mqtt:
-                    try:
-                        await self.mqtt.disconnect()
-                    except Exception as e:
-                        _LOGGER.debug("Error disconnecting MQTT during reconnect: %s", e)
-                    self.mqtt = None
-
-                await self._connect_mqtt()
-                self._connected = True
-                _LOGGER.info("MQTT reconnected successfully")
-
-                # Request fresh data after reconnection
-                asyncio.create_task(self.request_all_data())
-                return
-
-            except Exception as e:
-                _LOGGER.error("MQTT reconnect attempt %s failed: %s", attempt + 1, e)
-
-        _LOGGER.error("Failed to reconnect MQTT after 5 attempts")
 
     async def disconnect(self) -> None:
         """Disconnect all clients."""
-        self._connected = False
         self._initialized = False
+
+        # Cancel pending setup so an offline broker cannot reconnect after unload.
+        if self._mqtt_task is not None:
+            self._mqtt_task.cancel()
+            try:
+                await self._mqtt_task
+            except asyncio.CancelledError:
+                pass
+            finally:
+                self._mqtt_task = None
 
         # MQTT - disconnect first
         if self.mqtt:
@@ -841,7 +771,7 @@ class TesvorVacuum:
         """Request data for specified DPs."""
         try:
             # Проверяем готовность MQTT
-            if not self._connected or not self._command_sender:
+            if not self.is_connected or self._command_sender is None:
                 _LOGGER.warning("MQTT not connected or command sender not ready, skipping data request")
                 return False
 
@@ -930,7 +860,7 @@ class TesvorVacuum:
 
     async def _on_dp_data(self, dp_list: List):
         """Handle DP data using updated state."""
-        if not self._connected:
+        if not self.is_connected:
             _LOGGER.debug("MQTT disconnected, skipping DP processing")
             return
 
@@ -1302,7 +1232,7 @@ class TesvorVacuum:
             'charging': self.state.sensors.charging if self.state.sensors.charging is not None else False,
             'clean_time': self.state.sensors.clean_time_min,
             'clean_area': self.state.sensors.clean_area_m2,
-            'online': self._connected,
+            "online": self.is_connected,
             'consumables': self.state.sensors.consumables,
             'water_level': self.state.sensors.water_level
         }
@@ -1310,7 +1240,7 @@ class TesvorVacuum:
     @property
     def is_connected(self) -> bool:
         """Whether device is connected."""
-        return self._connected
+        return self.mqtt is not None and self.mqtt.is_connected
 
     @property
     def is_initialized(self) -> bool:

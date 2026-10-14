@@ -63,6 +63,11 @@ class TesvorVacuum(CoordinatorEntity, StateVacuumEntity):
 
         self._init_dynamic_features()
 
+    @property
+    def available(self) -> bool:
+        """Expose connection loss instead of showing cached state as available."""
+        return super().available and self.coordinator.vacuum.is_connected
+
     def _init_dynamic_features(self):
         """Initialize dynamic features from DP schema."""
         self._attr_fan_speed_list = ["quiet", "normal", "strong", "max"]
@@ -89,18 +94,18 @@ class TesvorVacuum(CoordinatorEntity, StateVacuumEntity):
                 new_state = get_localized_status(status_text.lower(), language)
                 if self._attr_state != new_state:
                     self._attr_state = new_state
-                    self.async_write_ha_state()
                     _LOGGER.info("State updated: %s", new_state)
             else:
                 language = self.hass.config.language if self.hass else "en"
                 new_state = get_localized_status("unknown", language)
                 if self._attr_state != new_state:
                     self._attr_state = new_state
-                    self.async_write_ha_state()
         else:
             if self._attr_state is not None:
                 self._attr_state = None
-                self.async_write_ha_state()
+
+        # Availability and attributes can change while the cleaning status is unchanged.
+        self.async_write_ha_state()
 
     def _get_localized_fan_speed(self, fan_speed: str) -> str:
         """Get localized fan speed display name."""

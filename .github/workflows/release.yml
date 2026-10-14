@@ -44,7 +44,7 @@ jobs:
           
           # Обновляем __version__.py
           cat > custom_components/tesvor/__version__.py << EOF
-          \"\"\"Version information for Tesvor integration.\"\"\"
+          """Version information for Tesvor integration."""
           
           __version__ = "$VERSION"
           __release_date__ = "$DATE"
@@ -58,10 +58,13 @@ jobs:
           echo "---"
           cat custom_components/tesvor/__version__.py
 
+      - name: Check packaged Python files
+        run: python3 -m compileall -q custom_components/tesvor
+
       - name: Create ZIP archive
         run: |
           cd custom_components/tesvor
-          zip -r ../tesvor.zip ./
+          zip -r ../tesvor.zip ./ -x "*__pycache__*" "*.pyc"
           cd ../..
           echo "✅ Created tesvor.zip"
           

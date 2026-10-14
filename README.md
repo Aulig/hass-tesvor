@@ -122,6 +122,18 @@ These advanced actions are available under the `tesvor` domain. Map-changing com
 
 The integration requires outbound access to Tesvor/BlackVision HTTPS services and MQTT port `8011`.
 
+MQTT connections automatically retry after network or broker outages, including
+failures during startup. Retry delays increase from one second to a maximum of
+60 seconds. Each reconnection restores subscriptions and requests fresh robot
+data. The vacuum is unavailable while disconnected, and cleaning commands are
+not queued for later execution.
+
+### Development tests
+
+Install `tests/requirements.txt`, then run `python -m unittest discover -s tests -v`.
+The MQTT regression tests start a broker on localhost and exercise disconnects,
+subscription recovery, and shutdown without mocks or access to a real vacuum.
+
 ## Known limitations
 
 - Physical commands and map mutation have not yet been validated across Tesvor models.
