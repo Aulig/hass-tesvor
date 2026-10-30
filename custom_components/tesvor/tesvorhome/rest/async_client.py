@@ -152,6 +152,10 @@ class TesvorRestAsync:
                 response.raise_for_status()
                 return await self._api_data(response)
 
+        except (aiohttp.ClientConnectionError, aiohttp.ClientPayloadError, asyncio.TimeoutError):
+            # Preserve transport errors so setup can request a Home Assistant retry.
+            raise
+
         except ClientResponseError as e:
             _LOGGER.error("HTTP error %s: %s", e.status, e.message)
 

@@ -122,6 +122,10 @@ These advanced actions are available under the `tesvor` domain. Map-changing com
 
 The integration requires outbound access to Tesvor/BlackVision HTTPS services and MQTT port `8011`.
 
+If DNS or the cloud connection is unavailable during startup, Home Assistant
+automatically retries setting up the integration instead of leaving it in a
+setup error until the next manual reload.
+
 MQTT connections automatically retry after network or broker outages, including
 failures during startup. Retry delays increase from one second to a maximum of
 60 seconds. Each reconnection restores subscriptions and requests fresh robot

@@ -3,9 +3,11 @@
 import logging
 import asyncio
 from typing import Optional, Union, List
+from aiohttp import ClientError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ConfigEntryNotReady
 from pathlib import Path
 
 from .const import (
@@ -217,7 +219,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     vacuum = TesvorVacuum(config)
 
     if not vacuum.is_initialized:
-        await vacuum.initialize()
+        try:
+            await vacuum.initialize()
+        except (ClientError, TimeoutError) as err:
+            # Let Home Assistant retry DNS and network failures during startup.
+            raise ConfigEntryNotReady(str(err)) from err
 
     vacuum.set_hass(hass)
 
