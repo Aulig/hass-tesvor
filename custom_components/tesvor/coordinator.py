@@ -26,6 +26,7 @@ class TesvorCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=UPDATE_INTERVAL),
         )
         self.vacuum = vacuum
+        self.vacuum.coordinator = self
         self._device_id: Optional[int] = None
         self._device_name: str = "Tesvor Vacuum"
         self.mac_address: Optional[str] = None

@@ -40,6 +40,7 @@ class TesvorAutoRestoreSwitch(CoordinatorEntity, SwitchEntity):
         self._attr_icon = "mdi:autorenew"
         self._attr_device_info = coordinator.device_info
         self._attr_is_on = self._load_state()
+        self.coordinator.vacuum.auto_restore_enabled = self._attr_is_on
 
     def _load_state(self) -> bool:
         """Load saved state from storage."""
@@ -50,12 +51,14 @@ class TesvorAutoRestoreSwitch(CoordinatorEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs):
         self._attr_is_on = True
+        self.coordinator.vacuum.auto_restore_enabled = True
         await self._save_state()
         self.async_write_ha_state()
         _LOGGER.info("Auto-restore reference map ENABLED")
 
     async def async_turn_off(self, **kwargs):
         self._attr_is_on = False
+        self.coordinator.vacuum.auto_restore_enabled = False
         await self._save_state()
         self.async_write_ha_state()
         _LOGGER.info("Auto-restore reference map DISABLED")

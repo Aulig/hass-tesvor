@@ -109,8 +109,10 @@ class TesvorVacuum:
         self._map_height: int = 200
         self._map_width: int = 200
 
-        self._last_map_id = None
-        self._last_map_check = None
+        self.coordinator = None
+        self.auto_restore_enabled = False
+        self._last_map_frame_id = None
+        self._last_auto_restore = None
         self._restore_in_progress = False
 
         # Callbacks
@@ -287,6 +289,8 @@ class TesvorVacuum:
     async def disconnect(self) -> None:
         """Disconnect all clients."""
         self._initialized = False
+        # A fresh connection establishes a new frame baseline, not a map reset.
+        self._last_map_frame_id = None
 
         # Cancel pending setup so an offline broker cannot reconnect after unload.
         if self._mqtt_task is not None:
@@ -561,11 +565,11 @@ class TesvorVacuum:
         _LOGGER.info("Loading reference map from device")
         try:
             # Получаем reference_map_id из coordinator
-            if not hasattr(self, 'coordinator') or not self.coordinator:
+            if self.coordinator is None:
                 _LOGGER.error("Coordinator not available")
                 return False
 
-            if not hasattr(self.coordinator, 'cloud_maps_sensor'):
+            if self.coordinator.cloud_maps_sensor is None:
                 _LOGGER.error("cloud_maps_sensor not available")
                 return False
 
@@ -586,19 +590,25 @@ class TesvorVacuum:
 
             # Восстанавливаем карту через use_cloud_map
             if reference_map.get('app_map_url') and reference_map.get('app_map_md5'):
-                await self.use_cloud_map(
+                success = await self.use_cloud_map(
                     reference_id,
                     reference_map['app_map_url'],
                     reference_map['app_map_md5']
                 )
             else:
-                await self.use_cloud_map(
+                success = await self.use_cloud_map(
                     reference_id,
                     reference_map['dev_map_url'],
                     reference_map['dev_map_md5']
                 )
 
-            _LOGGER.info("Reference map %s restored", reference_id)
+            if not success:
+                return False
+
+            # Restoring a map may restart its frame counter. Accept the first
+            # subsequent frame as a baseline instead of restoring it again.
+            self._last_map_frame_id = None
+            _LOGGER.info("Reference map %s restore command sent", reference_id)
             return True
 
         except Exception as e:
@@ -669,86 +679,48 @@ class TesvorVacuum:
             return False
 
     async def _check_map_changed(self, map_data: Dict):
-        """Check if map changed and restore if needed."""
-        if self._restore_in_progress:
+        """Restore on a restarted map stream, not ordinary frame updates."""
+        raw_map = map_data.get("raw")
+        if raw_map is None:
             return
 
-        # Get current map_id from map data
-        # MapData has frame_id field, not header.map_id
-        current_map_id = None
-        if 'raw' in map_data and hasattr(map_data['raw'], 'frame_id'):
-            current_map_id = map_data['raw'].frame_id
-
-        if not current_map_id:
+        # MapData exposes a frame counter, not a persistent cloud-map ID.
+        # Increasing numbers are live updates; a lower number indicates a
+        # restarted stream. Zero is valid after a reset.
+        current_frame_id = raw_map.frame_id
+        if current_frame_id < 0:
             return
 
-        # If this is the first map - just remember
-        if self._last_map_id is None:
-            self._last_map_id = current_map_id
-            self._last_map_check = datetime.now()
+        previous_frame_id = self._last_map_frame_id
+        self._last_map_frame_id = current_frame_id
+        # The first frame establishes a baseline. Record frames while disabled
+        # too, so switching on does not react to an old reset.
+        if (
+            previous_frame_id is None
+            or current_frame_id >= previous_frame_id
+            or not self.auto_restore_enabled
+        ):
             return
 
-        # Check if map changed
-        if current_map_id != self._last_map_id:
-            _LOGGER.warning("Map changed from %s to %s", self._last_map_id, current_map_id)
-
-            # Check if auto-restore is enabled
-            if hasattr(self, '_auto_restore_enabled') and self._auto_restore_enabled:
-                await self._restore_reference_map_if_needed()
-
-            self._last_map_id = current_map_id
-            self._last_map_check = datetime.now()
+        _LOGGER.info("Map frame sequence restarted: %s -> %s", previous_frame_id, current_frame_id)
+        await self._restore_reference_map_if_needed()
 
     async def _restore_reference_map_if_needed(self):
         """Restore reference map if available."""
-        if not hasattr(self, 'coordinator') or not self.coordinator:
+        if self._restore_in_progress:
             return
 
-        if not hasattr(self.coordinator, 'cloud_maps_sensor'):
+        # Suppress repeated resets from delayed frames or the restore itself.
+        now = asyncio.get_running_loop().time()
+        if self._last_auto_restore is not None and now - self._last_auto_restore < 60:
             return
-
-        sensor = self.coordinator.cloud_maps_sensor
-        reference_id = getattr(sensor, '_reference_map_id', None)
-
-        if not reference_id:
-            _LOGGER.debug("No reference map set, skipping restore")
-            return
-
-        _LOGGER.info("Attempting to restore reference map %s", reference_id)
 
         self._restore_in_progress = True
         try:
-            # Find map in sensor
-            reference_map = sensor.get_map_by_id(reference_id)
-            if not reference_map:
-                _LOGGER.error("Reference map %s not found", reference_id)
-                return
-
-            # Use existing method for restoration
-            if reference_map.get('app_map_url') and reference_map.get('app_map_md5'):
-                await self.use_cloud_map(
-                    reference_id,
-                    reference_map['app_map_url'],
-                    reference_map['app_map_md5']
-                )
-            else:
-                await self.use_cloud_map(
-                    reference_id,
-                    reference_map['dev_map_url'],
-                    reference_map['dev_map_md5']
-                )
-
-            _LOGGER.info("Reference map %s restored", reference_id)
-
-            # Notify user
-            if hasattr(self, 'hass') and self.hass:
-                self.hass.bus.async_fire("persistent_notification", {
-                    "message": "Map auto-restored from reference",
-                    "title": "Tesvor"
-                })
-
-        except Exception as e:
-            _LOGGER.error("Error restoring reference map: %s", e)
+            # Use the same reference lookup and command path as the button.
+            if await self.load_reference_map():
+                self._last_auto_restore = now
+                _LOGGER.info("Reference map auto-restore command sent")
         finally:
             self._restore_in_progress = False
 

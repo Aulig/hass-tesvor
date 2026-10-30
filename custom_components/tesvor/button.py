@@ -88,7 +88,8 @@ class TesvorSetReferenceMapButton(CoordinatorEntity, ButtonEntity):
             return
 
         # Save the selected map as the reference
-        sensor.set_reference_map(sensor.selected_map_id)
+        if not await sensor.async_set_reference_map(sensor.selected_map_id):
+            return
 
         # Send notification
         self.hass.bus.async_fire("persistent_notification", {

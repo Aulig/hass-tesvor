@@ -695,7 +695,8 @@ class TesvorCloudMapsSensor(CoordinatorEntity, SensorEntity):
 
         self._maps = []
         self.selected_map_id = None
-        self._reference_map_id = None
+        reference_id = coordinator.select_storage.get("reference_map_id")
+        self._reference_map_id = int(reference_id) if reference_id is not None else None
         _LOGGER.debug("CloudMapsSensor initialized")
 
         coordinator.cloud_maps_sensor = self
@@ -1012,10 +1013,11 @@ class TesvorCloudMapsSensor(CoordinatorEntity, SensorEntity):
         _LOGGER.warning("Selected map ID %s not found in maps list", self.selected_map_id)
         return False
 
-    def set_reference_map(self, map_id: int) -> bool:
-        """Set map as reference."""
+    async def async_set_reference_map(self, map_id: int) -> bool:
+        """Set map as reference and persist the choice across restarts."""
         for m in self._maps:
             if m['id'] == map_id:
+                await self.coordinator.select_storage.async_set("reference_map_id", str(map_id))
                 self._reference_map_id = map_id
                 self.async_write_ha_state()
                 _LOGGER.info("Reference map set to: %s (ID: %s)", m['name'], map_id)

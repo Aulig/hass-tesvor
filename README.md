@@ -55,13 +55,21 @@ Cloud-map actions use the current value of the **Cloud Map Select** entity unles
 |---|---|---|
 | **Refresh Cloud Maps** | Fetches the cloud-map list again and refreshes its Home Assistant sensor. | Read-only. |
 | **Download Map** | Downloads and renders the selected cloud map into Home Assistant's local map cache. | Read-only for the robot. Selecting a map may already trigger background download, so this is mainly a manual retry. |
-| **Set Reference Map** | Marks the selected cloud map as the reference used by restore and auto-restore. | Local Home Assistant state only; the selection is currently lost when the integration restarts. It does not change the robot by itself. |
+| **Set Reference Map** | Marks the selected cloud map as the reference used by restore and auto-restore. | Saved locally across restarts. It does not change the robot by itself. |
 | **Restore Reference Map** | Sends the locally marked reference map to the robot and requests a fresh live map. | Changes the robot's active map. Set a reference first. |
 | **Save Current Map** | Sends the robot's `map_save` command, asking it to save its current map to the cloud. | Changes cloud map state and is not yet verified on Tesvor hardware. |
 | **Use Selected Map** | Activates the selected cloud map on the robot, then requests a refreshed live map. | Changes the robot's active map; use this mainly to switch or recover maps/floors. |
 | **Refresh Clean History** | Loads up to ten recent cleaning records and renders their maps locally. | Read-only for the robot, but may take a few minutes and use local storage. |
 
 The **Cloud Map Camera** only previews the selected cloud map. Selecting or downloading a map does not activate it on the robot; **Use Selected Map** does.
+
+### Auto-restore reference map
+
+Select a cloud map, press **Set Reference Map**, then turn on **Auto-restore Reference Map**. Both settings survive integration and Home Assistant restarts.
+
+When the live map's frame counter restarts (drops below its previous value), the integration sends the saved reference map to the robot. Normal increasing frame numbers and the first frame after connecting do not trigger a restore. Successful automatic restore commands are limited to one per minute to avoid loops.
+
+The frame counter is a recovery heuristic, not a persistent map ID or a map-content comparison. It cannot detect every kind of map loss. Turn auto-restore off before deliberately switching floors or rebuilding a map, because those actions can also restart the frame sequence. A restore command being sent does not confirm that the robot accepted it.
 
 ### Zone cleaning card
 
@@ -134,15 +142,17 @@ not queued for later execution.
 
 ### Development tests
 
-Install `tests/requirements.txt`, then run `python -m unittest discover -s tests -v`.
+With Python 3.13, install `tests/requirements.txt`, then run `python -m unittest discover -s tests -v`.
 The MQTT regression tests start a broker on localhost and exercise disconnects,
 subscription recovery, and shutdown without mocks or access to a real vacuum.
+The auto-restore tests use real Home Assistant entities and on-disk storage plus
+the local broker to check the encoded map command, switch behavior, and reloads.
 
 ## Known limitations
 
 - Physical commands and map mutation have not yet been validated across Tesvor models.
 - Map editing, including room splitting and merging, is not implemented.
-- The reference-map button stores its choice only in memory and must be set again after an integration or Home Assistant restart.
+- Auto-restore detects restarted frame sequences; the protocol does not expose a persistent map ID in live map messages.
 - The integration depends on undocumented cloud and MQTT protocols that may change without notice.
 
 ## Technical details
