@@ -1,4 +1,9 @@
 {
+  "exceptions": {
+    "cloud_unavailable": {
+      "message": "Облако Tesvor недоступно: {error}"
+    }
+  },
   "title": "Tesvor",
   "config": {
     "step": {

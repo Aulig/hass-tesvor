@@ -731,6 +731,9 @@ class TesvorCloudMapsSensor(CoordinatorEntity, SensorEntity):
         """Update maps list."""
         _LOGGER.debug("CloudMapsSensor.async_update() called")
 
+        if not self.coordinator.rest_available:
+            return
+
         if not self.coordinator.vacuum:
             _LOGGER.error("Vacuum not initialized")
             return
@@ -1675,6 +1678,8 @@ class TesvorCleanHistorySensor(CoordinatorEntity, SensorEntity):
 
     async def _load_history(self):
         """Load ALL history records - list only, without maps."""
+        if not self.coordinator.rest_available:
+            return
         if self._loading:
             return
 

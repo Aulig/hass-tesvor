@@ -133,5 +133,59 @@ class MQTTRecoveryTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(pending, return_exceptions=True)
 
 
+    async def test_publish_timeout_does_not_latch_transport_offline(self) -> None:
+        """A live MQTT peer that misses PUBACK must not disable the client forever."""
+        connections = set()
+        self.client = MQTT.AsyncMQTTClient(
+            "127.0.0.1", self.port, "test", "test", "tesvor-timeout-test",
+        )
+
+        async def mqtt_peer(reader, writer):
+            connections.add(writer)
+            try:
+                while True:
+                    header = (await reader.readexactly(1))[0]
+                    length = 0
+                    shift = 0
+                    while True:
+                        byte = (await reader.readexactly(1))[0]
+                        length += (byte & 127) << shift
+                        if byte < 128:
+                            break
+                        shift += 7
+                    payload = await reader.readexactly(length)
+                    if header >> 4 == 1:  # CONNECT -> CONNACK
+                        writer.write(b"\x20\x02\x00\x00")
+                    elif header >> 4 == 8:  # SUBSCRIBE -> SUBACK
+                        writer.write(b"\x90\x03" + payload[:2] + b"\x01")
+                    elif header >> 4 == 12:  # PINGREQ -> PINGRESP
+                        writer.write(b"\xd0\x00")
+                    elif header >> 4 == 14:  # DISCONNECT
+                        break
+                    # Deliberately omit PUBACK, while keeping the socket alive.
+                    await writer.drain()
+            except asyncio.IncompleteReadError:
+                pass
+            finally:
+                connections.discard(writer)
+                writer.close()
+                await writer.wait_closed()
+
+        server = await asyncio.start_server(mqtt_peer, "127.0.0.1", self.port)
+        try:
+            await asyncio.wait_for(self.client.connect(), timeout=3)
+            with self.assertRaises(aiomqtt.MqttError):
+                await self.client.publish("DP_APP_test", b"missing-ack", qos=1)
+            self.assertTrue(self.client.is_connected)
+            await self.client.publish("DP_APP_test", b"no-ack-needed", qos=0)
+        finally:
+            await self.client.disconnect()
+            server.close()
+            await server.wait_closed()
+            for writer in list(connections):
+                writer.close()
+
+
+
 if __name__ == "__main__":
     unittest.main()

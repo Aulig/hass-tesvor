@@ -141,14 +141,10 @@ class AsyncMQTTClient:
         if not self._connected or self._client is None:
             raise ConnectionError("MQTT not connected")
 
-        try:
-            await self._client.publish(topic, payload=payload, qos=qos)
-            _LOGGER.debug("Published to %s: %s bytes", topic, len(payload))
-        except aiomqtt.MqttError as e:
-            self._connected = False
-            self._ready.clear()
-            _LOGGER.error("Error publishing to %s: %s", topic, e)
-            raise
+        # A publish timeout does not mean the transport disconnected. The
+        # connection loop owns availability and observes actual socket loss.
+        await self._client.publish(topic, payload=payload, qos=qos)
+        _LOGGER.debug("Published to %s: %s bytes", topic, len(payload))
 
     async def subscribe(self, topic: str, qos: int = 1) -> None:
         """Remember a subscription, including before the first connection."""

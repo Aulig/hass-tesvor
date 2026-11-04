@@ -130,9 +130,18 @@ These advanced actions are available under the `tesvor` domain. Map-changing com
 
 The integration requires outbound access to Tesvor/BlackVision HTTPS services and MQTT port `8011`.
 
-If DNS or the cloud connection is unavailable during startup, Home Assistant
-automatically retries setting up the integration instead of leaving it in a
-setup error until the next manual reload.
+During startup, Home Assistant retries cloud/network failures (including vendor
+"server busy" responses) using its built-in setup retry schedule. During normal
+operation, cloud data is retried on the coordinator's 60-second polling cycle.
+Cloud failures do not disconnect an otherwise working MQTT connection, and the
+last known cleaning statistics are retained until a successful refresh.
+
+Expired SDK tokens and HTTP authentication failures trigger one serialized
+renewal and at most one replay of a read request. Failed renewals back off from
+five seconds up to five minutes; state-changing requests are never replayed.
+Closed HTTP transports are replaced in the same client so map/history managers
+keep a valid reference. Unloading the integration closes the client and prevents
+background callbacks from reopening it.
 
 MQTT connections automatically retry after network or broker outages, including
 failures during startup. Retry delays increase from one second to a maximum of
@@ -147,6 +156,10 @@ The MQTT regression tests start a broker on localhost and exercise disconnects,
 subscription recovery, and shutdown without mocks or access to a real vacuum.
 The auto-restore tests use real Home Assistant entities and on-disk storage plus
 the local broker to check the encoded map command, switch behavior, and reloads.
+Cloud recovery tests serve actual HTTP responses and exercise repeated outages,
+simultaneous cloud/broker failures, concurrent token renewal, and cancelled setup.
+The MQTT tests also verify that a missing publish acknowledgment cannot latch a
+live connection offline.
 
 ## Known limitations
 

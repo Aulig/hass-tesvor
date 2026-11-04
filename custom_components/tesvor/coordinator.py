@@ -1,15 +1,17 @@
 """Data update coordinator for Tesvor."""
 
 import logging
-import asyncio
 from datetime import timedelta, datetime
 from typing import Any, Dict, Optional
 
+import aiohttp
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DOMAIN, UPDATE_INTERVAL
+from .tesvorhome.rest.async_client import TesvorRestError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,13 +19,14 @@ _LOGGER = logging.getLogger(__name__)
 class TesvorCoordinator(DataUpdateCoordinator):
     """Coordinator for Tesvor data updates."""
 
-    def __init__(self, hass: HomeAssistant, vacuum):
+    def __init__(self, hass: HomeAssistant, vacuum, config_entry: Optional[ConfigEntry] = None):
         """Initialize with shared vacuum instance."""
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
             update_interval=timedelta(seconds=UPDATE_INTERVAL),
+            config_entry=config_entry,
         )
         self.vacuum = vacuum
         self.vacuum.coordinator = self
@@ -32,7 +35,6 @@ class TesvorCoordinator(DataUpdateCoordinator):
         self.mac_address: Optional[str] = None
         self._initialized = False
         self._rest_failures = 0
-        self._max_rest_failures = 3
         self._last_rest_success: Optional[datetime] = None
 
         # References to cloud map entities
@@ -46,190 +48,115 @@ class TesvorCoordinator(DataUpdateCoordinator):
         self.clean_history_camera = None
 
     async def _async_setup(self):
-        """Set up vacuum connection."""
-        if not self._initialized:
-            try:
-                _LOGGER.info("Initializing TesvorVacuum...")
-                if not self.vacuum.is_initialized:
-                    await self.vacuum.initialize()
-
-                # Set hass for visualizer
-                self.vacuum.set_hass(self.hass)
-
-                if self.vacuum.info:
-                    self._device_id = self.vacuum.info.device_id
-                    self.mac_address = self.vacuum.info.mac
-                self._initialized = True
-                self._rest_failures = 0
-                _LOGGER.info("TesvorVacuum initialized")
-            except Exception as err:
-                _LOGGER.error("Initialization error: %s", err)
-                raise UpdateFailed(f"Initialization error: {err}") from err
-
-    async def _ensure_rest_connection(self) -> bool:
-        """Check and restore REST connection."""
-        if not self.vacuum or not self.vacuum.rest:
-            _LOGGER.warning("REST client missing")
-            return False
-
+        """Retry incomplete initialization on every scheduled coordinator update."""
         try:
-            await self.vacuum.rest.get_devices()
-            self._rest_failures = 0
-            self._last_rest_success = datetime.now()
-            return True
-        except Exception as e:
-            self._rest_failures += 1
-            _LOGGER.warning("REST error (%s/%s): %s", self._rest_failures, self._max_rest_failures, e)
-
-            if self._rest_failures >= self._max_rest_failures:
-                _LOGGER.error("REST connection lost, reconnecting...")
-                await self._reconnect()
-
-            return False
-
-    async def _reconnect(self):
-        """Perform full reconnection."""
-        try:
-            _LOGGER.info("Reconnecting...")
-            await self.vacuum.disconnect()
-            await asyncio.sleep(2)
-            await self.vacuum.initialize()
-            self._rest_failures = 0
-            self._last_rest_success = datetime.now()
-            _LOGGER.info("Reconnection successful")
-        except Exception as e:
-            _LOGGER.error("Reconnection error: %s", e)
-            self._rest_failures = 0
+            if not self.vacuum.is_initialized:
+                await self.vacuum.initialize()
+            self.vacuum.set_hass(self.hass)
+            self._device_id = self.vacuum.info.device_id
+            self.mac_address = self.vacuum.info.mac
+            self._initialized = True
+        except (aiohttp.ClientError, TimeoutError, ConnectionError, TesvorRestError) as err:
+            self._initialized = False
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="cloud_unavailable",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
     async def _async_update_data(self) -> Dict[str, Any]:
-        """Fetch data from vacuum."""
-        try:
-            if not self._initialized:
-                await self._async_setup()
+        """Poll cloud data without tearing down a working MQTT connection."""
+        if not self._initialized or not self.vacuum.is_initialized:
+            await self._async_setup()
 
-            rest_ok = await self._ensure_rest_connection()
-
-            sensors = self.vacuum.state.sensors
-
-            data = {
-                # MQTT data
-                "battery_level": sensors.battery,
-                "status_code": sensors.status_code,
-                "status_text": self._get_status_text(sensors),
-                "online": self.vacuum.is_connected,
-                "current_clean_time": sensors.clean_time_min,
-                "current_clean_area": sensors.clean_area_m2,
-                "fan_speed": sensors.fan_speed,
-                "water_level": sensors.water_level,
-                "clean_mode": sensors.clean_mode,
-
-                # REST data (will be filled if connection is available)
-                "software_version": "Unknown",
+        sensors = self.vacuum.state.sensors
+        previous = self.data if self.data is not None else {}
+        data = {
+            # MQTT data remains independent of cloud statistics and authentication.
+            "battery_level": sensors.battery,
+            "status_code": sensors.status_code,
+            "status_text": self._get_status_text(sensors),
+            "online": self.vacuum.is_connected,
+            "current_clean_time": sensors.clean_time_min,
+            "current_clean_area": sensors.clean_area_m2,
+            "fan_speed": sensors.fan_speed,
+            "water_level": sensors.water_level,
+            "clean_mode": sensors.clean_mode,
+            "malfunction_code": sensors.malfunction_code,
+            "consumables": sensors.consumables,
+            # Retain real cloud values during outages instead of publishing zeros.
+            "software_version": previous.get("software_version", "Unknown"),
+            "mac_address": self.mac_address,
+            "device_pid": self.vacuum.info.pid,
+            "statistics": previous.get("statistics", {}),
+            "last_clean": previous.get("last_clean", {}),
+            "device_details": dict(previous.get("device_details", {
+                "device_name": self.vacuum.info.name,
                 "mac_address": self.mac_address,
-                "device_pid": self.vacuum.info.pid if self.vacuum.info else None,
-                "consumables": sensors.consumables,
-                "statistics": {
-                    "total_cleanings": 0,
-                    "total_clean_time": 0,
-                    "total_clean_area": 0,
-                },
-                "last_clean": {},
-                "device_details": {
-                    "device_name": "Tesvor Vacuum",
-                    "mac_address": self.mac_address,
-                    "device_id": self.device_id,
-                    "p_id": self.vacuum.info.pid if self.vacuum.info else None,
+                "device_id": self.device_id,
+                "p_id": self.vacuum.info.pid,
+            })),
+        }
+
+        try:
+            devices = await self.vacuum.rest.get_devices()
+            await self.vacuum.load_consumables()
+            for device in devices:
+                if device["deviceId"] == self.device_id:
+                    data["software_version"] = device.get("softwareVersion", "Unknown")
+                    data["device_details"].update({
+                        "image_url": device.get("imageUrl"),
+                        "software_version": device.get("softwareVersion", "Unknown"),
+                        "proto_version": device.get("protoVersion"),
+                    })
+                    break
+
+            total_stats = await self.vacuum.rest.get_clean_sum(self.device_id)
+            if total_stats:
+                data["statistics"] = {
+                    "total_cleanings": total_stats.get("cleanNums", 0),
+                    "total_clean_time": round(total_stats.get("cleanLength", 0) / 3600, 1),
+                    "total_clean_area": round(total_stats.get("cleanArea", 0) / 10, 1),
                 }
-            }
 
-            data["malfunction_code"] = sensors.malfunction_code if hasattr(sensors, 'malfunction_code') else 0
-
-            if rest_ok and self.vacuum and self.vacuum.info:
-                max_retries = 3
-                rest_error = None
-                for attempt in range(max_retries):
+            records = await self.vacuum.rest.get_clean_records(self.device_id, 0, 1)
+            if records:
+                record = records[0]
+                clean_time = None
+                if clean_time_str := record.get("cleanTime"):
                     try:
-                        await self.vacuum.load_consumables()
-                        data["consumables"] = sensors.consumables
-                        _LOGGER.debug("Consumables after load: %s", sensors.consumables)
+                        naive_dt = datetime.strptime(clean_time_str, "%Y-%m-%d %H:%M:%S")
+                        clean_time = dt_util.as_utc(naive_dt)
+                    except (ValueError, TypeError) as err:
+                        _LOGGER.warning("Error parsing time: %s", err)
+                data["last_clean"] = {
+                    "clean_time": clean_time,
+                    "clean_duration": record.get("cleanLength", 0) // 60,
+                    "clean_area": record.get("cleanArea", 0) / 10,
+                    "finished": record.get("cleanFinishedFlag", False),
+                }
+        except (aiohttp.ClientError, TimeoutError, ConnectionError, TesvorRestError) as err:
+            self._rest_failures += 1
+            if self._rest_failures == 1:
+                _LOGGER.warning("Cloud unavailable; will retry on the next update: %s", err)
+            if not self.vacuum.is_connected:
+                raise UpdateFailed(
+                    translation_domain=DOMAIN,
+                    translation_key="cloud_unavailable",
+                    translation_placeholders={"error": str(err)},
+                ) from err
+        else:
+            if self._rest_failures > 0:
+                _LOGGER.info("Cloud connection recovered")
+            self._rest_failures = 0
+            self._last_rest_success = datetime.now()
 
-                        devices = await self.vacuum.rest.get_devices()
-                        for device in devices:
-                            if device.get("deviceId") == self.device_id:
-                                data["software_version"] = device.get("softwareVersion", "Unknown")
-                                data["device_details"].update({
-                                    "image_url": device.get("imageUrl"),
-                                    "software_version": device.get("softwareVersion", "Unknown"),
-                                    "proto_version": device.get("protoVersion"),
-                                })
-                                break
+        return data
 
-                        total_stats = await self.vacuum.rest.get_clean_sum(self.vacuum.info.device_id)
-                        if total_stats:
-                            data["statistics"] = {
-                                "total_cleanings": total_stats.get("cleanNums", 0),
-                                "total_clean_time": round(total_stats.get("cleanLength", 0) / 3600, 1),
-                                "total_clean_area": round(total_stats.get("cleanArea", 0) / 10, 1),
-                            }
-
-                        records = await self.vacuum.rest.get_clean_records(self.vacuum.info.device_id, 0, 1)
-                        if records:
-                            record = records[0]
-                            clean_time_str = record.get("cleanTime")
-                            clean_time = None
-                            if clean_time_str:
-                                try:
-                                    naive_dt = datetime.strptime(clean_time_str, "%Y-%m-%d %H:%M:%S")
-                                    clean_time = dt_util.as_utc(naive_dt)
-                                except (ValueError, TypeError) as e:
-                                    _LOGGER.warning("Error parsing time: %s", e)
-
-                            data["last_clean"] = {
-                                "clean_time": clean_time,
-                                "clean_duration": record.get("cleanLength", 0) // 60,
-                                "clean_area": record.get("cleanArea", 0) / 10,
-                                "finished": record.get("cleanFinishedFlag", False),
-                            }
-
-                        rest_error = None
-                        break
-
-                    except Exception as e:
-                        rest_error = e
-                        error_str = str(e)
-
-                        if "DNS" in error_str or "Timeout" in error_str or "getaddrinfo" in error_str:
-                            if attempt < max_retries - 1:
-                                wait_time = 2 ** attempt  # 1, 2, 4 секунды
-                                _LOGGER.warning("DNS/Timeout error, retry %s/%s in %ss: %s",
-                                               attempt + 1, max_retries, wait_time, error_str)
-                                await asyncio.sleep(wait_time)
-                                continue
-                            else:
-                                _LOGGER.warning("DNS/Timeout error after %s attempts: %s", max_retries, e)
-                                break
-                        else:
-                            _LOGGER.warning("REST error (non-retryable): %s", e)
-                            break
-
-                if rest_error and data.get("battery_level") is None and data.get("status_code") is None:
-                    _LOGGER.error("REST data fetch failed and no MQTT data available")
-                    raise UpdateFailed(f"Failed to fetch data: {rest_error}")
-
-            return data
-
-        except UpdateFailed:
-            # Re-raise UpdateFailed to notify HA
-            raise
-
-        except Exception as err:
-            _LOGGER.error("Update error: %s", err, exc_info=True)
-            # If we have no data at all, raise UpdateFailed
-            if not self.data:
-                raise UpdateFailed(f"Error updating: {err}") from err
-            # If we have cached data, return it but log the error
-            _LOGGER.warning("Using cached data due to update error")
-            return self.data or {}
+    @property
+    def rest_available(self) -> bool:
+        """Whether background cloud requests should run on this update."""
+        return self._initialized and self.vacuum.is_initialized and self._rest_failures == 0
 
     def _get_status_text(self, sensors) -> str:
         """Get combined status text with error details if needed."""
@@ -244,7 +171,7 @@ class TesvorCoordinator(DataUpdateCoordinator):
         if self._rest_failures == 0 and self._last_rest_success:
             return f"OK (last success: {self._last_rest_success.strftime('%H:%M:%S')})"
         elif self._rest_failures > 0:
-            return f"Problems ({self._rest_failures}/{self._max_rest_failures})"
+            return f"Problems ({self._rest_failures})"
         return "Not checked"
 
     @property

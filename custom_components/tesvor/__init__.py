@@ -29,6 +29,7 @@ from .coordinator import TesvorCoordinator
 from .data_center_manager import get_data_center_manager
 from .tesvorhome.config import TesvorConfig, RestConfig, MQTTConfig, Credentials, DeviceConfig
 from .tesvorhome.device.vacuum import TesvorVacuum
+from .tesvorhome.rest.async_client import TesvorRestError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -218,55 +219,66 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     config = await _build_config(hass, entry)
     vacuum = TesvorVacuum(config)
 
-    if not vacuum.is_initialized:
-        try:
-            await vacuum.initialize()
-        except (ClientError, TimeoutError) as err:
-            # Let Home Assistant retry DNS and network failures during startup.
-            raise ConfigEntryNotReady(str(err)) from err
+    try:
+        if not vacuum.is_initialized:
+            try:
+                await vacuum.initialize()
+            except (ClientError, TimeoutError, ConnectionError, TesvorRestError) as err:
+                # Let Home Assistant retry all cloud/network failures, including busy servers.
+                raise ConfigEntryNotReady(
+                    translation_domain=DOMAIN,
+                    translation_key="cloud_unavailable",
+                    translation_placeholders={"error": str(err)},
+                ) from err
 
-    vacuum.set_hass(hass)
+        vacuum.set_hass(hass)
 
-    coordinator = TesvorCoordinator(hass, vacuum)
+        coordinator = TesvorCoordinator(hass, vacuum, config_entry=entry)
 
-    from .select_storage import TesvorSelectStorage
-    coordinator.select_storage = TesvorSelectStorage(hass, entry.entry_id)
+        from .select_storage import TesvorSelectStorage
+        coordinator.select_storage = TesvorSelectStorage(hass, entry.entry_id)
 
-    old_storage_path = hass.config.path(f"custom_components/tesvor/select_states_{entry.entry_id}.json")
-    await coordinator.select_storage.async_migrate_from_file(Path(old_storage_path))
-    await coordinator.select_storage.async_ensure_loaded()
+        old_storage_path = hass.config.path(f"custom_components/tesvor/select_states_{entry.entry_id}.json")
+        await coordinator.select_storage.async_migrate_from_file(Path(old_storage_path))
+        await coordinator.select_storage.async_ensure_loaded()
 
-    entry_data = {
-        'coordinator': coordinator,
-        'vacuum': vacuum,
-        'config': config,
-    }
-    hass.data[DOMAIN][entry.entry_id] = entry_data
+        entry_data = {
+            "coordinator": coordinator,
+            "vacuum": vacuum,
+            "config": config,
+        }
+        await coordinator.async_config_entry_first_refresh()
 
-    await coordinator.async_config_entry_first_refresh()
+        hass.data[DOMAIN][entry.entry_id] = entry_data
 
-    _LOGGER.info("Registering platforms: %s", PLATFORMS)
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        _LOGGER.info("Registering platforms: %s", PLATFORMS)
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    if not hass.data[DOMAIN].get('services_registered'):
-        await _async_register_services(hass)
-        hass.data[DOMAIN]['services_registered'] = True
-        hass.data[DOMAIN]['service_names'] = [
-            "request_all_data", "request_map", "build_map", "empty_dust",
-            "clean_room_with_preset", "restore_reference_map", "compare_with_reference",
-            "force_update_maps", "cleanup_maps", "save_select_states",
-            "restore_select_states", "set_reference_map", "use_cloud_map",
-            "use_selected_cloud_map", "force_load_history", "cleanup_history_maps",
-            "cleanup_all_except_current", "vacuum_clean_zone"
-        ]
+        if not hass.data[DOMAIN].get("services_registered"):
+            await _async_register_services(hass)
+            hass.data[DOMAIN]["services_registered"] = True
+            hass.data[DOMAIN]["service_names"] = [
+                "request_all_data", "request_map", "build_map", "empty_dust",
+                "clean_room_with_preset", "restore_reference_map", "compare_with_reference",
+                "force_update_maps", "cleanup_maps", "save_select_states",
+                "restore_select_states", "set_reference_map", "use_cloud_map",
+                "use_selected_cloud_map", "force_load_history", "cleanup_history_maps",
+                "cleanup_all_except_current", "vacuum_clean_zone"
+            ]
 
-    if not hass.data[DOMAIN].get('stop_handler_registered'):
-        hass.bus.async_listen_once("homeassistant_stop",
-            lambda event: hass.async_create_task(_async_close_all_vacuums(hass)))
-        hass.data[DOMAIN]['stop_handler_registered'] = True
+        if not hass.data[DOMAIN].get("stop_handler_registered"):
+            hass.bus.async_listen_once("homeassistant_stop",
+                lambda event: hass.async_create_task(_async_close_all_vacuums(hass)))
+            hass.data[DOMAIN]["stop_handler_registered"] = True
 
-    _LOGGER.info("Tesvor integration initialized for entry %s", entry.entry_id)
-    return True
+        _LOGGER.info("Tesvor integration initialized for entry %s", entry.entry_id)
+        return True
+
+    except BaseException:
+        # A failed or cancelled setup must never leave a partially loaded entry.
+        hass.data[DOMAIN].pop(entry.entry_id, None)
+        await vacuum.disconnect()
+        raise
 
 
 async def _async_register_services(hass: HomeAssistant):

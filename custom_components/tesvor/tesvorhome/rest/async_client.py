@@ -4,6 +4,7 @@ Exact copy of tesvor_rest.py logic, but with async/await.
 """
 
 import asyncio
+import json
 import logging
 from typing import Any, Dict, Optional, List
 from urllib.parse import urljoin
@@ -20,6 +21,10 @@ _LOGGER = logging.getLogger(__name__)
 class TesvorRestError(Exception):
     """REST API exception."""
     pass
+
+
+class TesvorTokenExpired(TesvorRestError):
+    """The cloud rejected the current SDK token."""
 
 
 class TesvorRestAsync:
@@ -74,19 +79,52 @@ class TesvorRestAsync:
         self.client_id: Optional[str] = None
 
         self.timeout = ClientTimeout(total=60, connect=30)
+        self._closed = False
+        self._auth_lock = asyncio.Lock()
+        self._auth_generation = 0
+        self._auth_retry_at = 0.0
+        self._auth_retry_delay = 5
 
     async def __aenter__(self):
         """Enter context manager."""
-        self.session = aiohttp.ClientSession(
-            timeout=self.timeout,
-            headers={"User-Agent": self.config['user_agent']}
-        )
+        self._closed = False
+        self._ensure_session()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit context manager."""
-        if self.session:
+        self._closed = True
+        if self.session is not None:
             await self.session.close()
+
+    def _ensure_session(self) -> aiohttp.ClientSession:
+        """Replace a closed transport without reviving an unloaded integration."""
+        if self._closed:
+            raise ConnectionError("Tesvor REST client has been shut down")
+        if self.session is None or self.session.closed:
+            self.session = aiohttp.ClientSession(
+                timeout=self.timeout,
+                headers={"User-Agent": self.config["user_agent"]},
+            )
+        return self.session
+
+    async def authenticate(self, generation: Optional[int] = None) -> None:
+        """Renew tokens once for concurrent requests, with backoff on failure."""
+        async with self._auth_lock:
+            if generation is not None and generation != self._auth_generation:
+                return
+            if asyncio.get_running_loop().time() < self._auth_retry_at:
+                raise TesvorRestError("Cloud authentication is waiting before retrying")
+            try:
+                await self.login()
+                await self.login_sdk()
+            except (aiohttp.ClientError, TimeoutError, TesvorRestError):
+                self._auth_retry_at = asyncio.get_running_loop().time() + self._auth_retry_delay
+                self._auth_retry_delay = min(self._auth_retry_delay * 2, 300)
+                raise
+            self._auth_generation += 1
+            self._auth_retry_at = 0.0
+            self._auth_retry_delay = 5
 
     # ------------------------------------------------------------------
     # LOW-LEVEL METHODS - ONLY FOR REQUESTS WITH iot_token
@@ -112,73 +150,48 @@ class TesvorRestAsync:
         """
         try:
             data = await response.json()
-        except Exception as e:
-            raise TesvorRestError(f"Failed to parse JSON: {e}")
+        except (json.JSONDecodeError, aiohttp.ContentTypeError) as err:
+            raise TesvorRestError("Cloud returned an invalid JSON response") from err
+
+        if not isinstance(data, dict):
+            raise TesvorRestError("Cloud returned an invalid response envelope")
 
         code = str(data.get("code", ""))
         if code != "10000":
             msg = data.get("msg", "Unknown API error")
-            _LOGGER.error("API error [%s]: %s", code, msg)
+            if code == "10600":
+                raise TesvorTokenExpired(f"API error {code}: {msg}")
             raise TesvorRestError(f"API error {code}: {msg}")
 
         return data.get("data")
 
     async def _request(self, method: str, path: str, **kwargs) -> Any:
         """
-        Execute request WITH iot_token.
-        With automatic session recovery on errors.
+        Execute a request with iot_token and at most one authentication retry.
+
+        Only reads are replayed. State-changing requests are never retried here.
         """
-        if not self.session:
-            self.session = aiohttp.ClientSession(
-                timeout=self.timeout,
-                headers={"User-Agent": self.config['user_agent']}
-            )
-
         url = urljoin(self.config['base_url'], path)
-        headers = kwargs.pop("headers", None)
+        custom_headers = kwargs.pop("headers", None)
+        for attempt in range(2):
+            generation = self._auth_generation
+            try:
+                async with self._ensure_session().request(
+                    method, url,
+                    headers=self._headers() if custom_headers is None else custom_headers,
+                    **kwargs,
+                ) as response:
+                    response.raise_for_status()
+                    return await self._api_data(response)
+            except TesvorTokenExpired:
+                if method != "GET" or attempt == 1:
+                    raise
+            except ClientResponseError as err:
+                if err.status not in (401, 403) or method != "GET" or attempt == 1:
+                    raise
 
-        if headers is None:
-            headers = self._headers()
-
-        _LOGGER.debug("%s %s", method, url)
-
-        try:
-            async with self.session.request(
-                method=method,
-                url=url,
-                headers=headers,
-                **kwargs
-            ) as response:
-                response.raise_for_status()
-                return await self._api_data(response)
-
-        except (aiohttp.ClientConnectionError, aiohttp.ClientPayloadError, asyncio.TimeoutError):
-            # Preserve transport errors so setup can request a Home Assistant retry.
-            raise
-
-        except ClientResponseError as e:
-            _LOGGER.error("HTTP error %s: %s", e.status, e.message)
-
-            # Если сессия закрыта или 401 - пробуем переаутентифицироваться
-            if e.status in (401, 403) or "Session is closed" in str(e):
-                _LOGGER.warning("Session invalid, attempting to re-authenticate")
-                await self.login()
-                await self.login_sdk()
-                # Повторяем запрос один раз
-                return await self._request(method, path, **kwargs)
-
-            raise TesvorRestError(f"HTTP {e.status}: {e.message}")
-
-        except TesvorRestError as e:
-            # Специальная обработка для ошибки 50000
-            if "50000" in str(e):
-                _LOGGER.warning("Server error (50000): %s. This is a temporary issue.", e)
-                raise TesvorRestError(f"Temporary server error, please retry: {e}")
-            raise
-
-        except Exception as e:
-            _LOGGER.error("Request failed: %s", e)
-            raise TesvorRestError(f"Request failed: {e}")
+            # Serialize renewal and skip it if another request already renewed.
+            await self.authenticate(generation)
 
     async def _get(self, path: str, params: Optional[Dict] = None) -> Any:
         """GET request with iot_token."""
@@ -198,12 +211,7 @@ class TesvorRestAsync:
         _LOGGER.debug("Base URL: %s", self.config['base_url'])
         _LOGGER.debug("App source: %s", self.config['source'])
 
-        if not self.session:
-            _LOGGER.debug("Creating new session")
-            self.session = aiohttp.ClientSession(
-                timeout=self.timeout,
-                headers={"User-Agent": self.config['user_agent']}
-            )
+        self._ensure_session()
 
         try:
             # 1. Check account status
@@ -223,10 +231,7 @@ class TesvorRestAsync:
                 }
             ) as response:
                 _LOGGER.debug("Status response: %s", response.status)
-                if response.status != 200:
-                    text = await response.text()
-                    _LOGGER.error("Error response: %s", text[:200])
-                    raise Exception(f"HTTP {response.status}")
+                response.raise_for_status()
 
                 account_state = await self._api_data(response)
                 enc = account_state.get("encryptType", 1)
@@ -255,10 +260,7 @@ class TesvorRestAsync:
                 ),
             ) as response:
                 _LOGGER.debug("Login response status: %s", response.status)
-                if response.status != 200:
-                    text = await response.text()
-                    _LOGGER.error("Login error: %s", text[:200])
-                    raise Exception(f"HTTP {response.status}")
+                response.raise_for_status()
 
                 data = await self._api_data(response)
                 self.user_id = str(data["id"])
@@ -269,11 +271,8 @@ class TesvorRestAsync:
             _LOGGER.debug("=== LOGIN COMPLETED ===")
             return True
 
-        except asyncio.TimeoutError:
-            _LOGGER.error("❌ Login timeout")
-            raise
-        except Exception as e:
-            _LOGGER.error("❌ Login error: %s", e)
+        except (aiohttp.ClientError, TimeoutError, TesvorRestError):
+            _LOGGER.debug("Cloud login failed", exc_info=True)
             raise
 
     async def login_sdk(self):
@@ -281,11 +280,7 @@ class TesvorRestAsync:
         if not self.app_token:
             raise TesvorRestError("login() first")
 
-        if not self.session:
-            self.session = aiohttp.ClientSession(
-                timeout=self.timeout,
-                headers={"User-Agent": self.config['user_agent']}
-            )
+        self._ensure_session()
 
         url = urljoin(
             self.config['base_url'],
@@ -307,6 +302,7 @@ class TesvorRestAsync:
                 "userId": self.user_id,
             }
         ) as response:
+            response.raise_for_status()
             data = await self._api_data(response)
             self.iot_token = data["token"]
             self.client_id = data["clientId"]
@@ -462,13 +458,7 @@ class TesvorRestAsync:
         """Download binary map from URL."""
         _LOGGER.info("Downloading map: %s", map_url)
 
-        if not self.session:
-            self.session = aiohttp.ClientSession(
-                timeout=self.timeout,
-                headers={"User-Agent": self.config['user_agent']}
-            )
-
-        async with self.session.get(map_url) as response:
+        async with self._ensure_session().get(map_url) as response:
             response.raise_for_status()
             return await response.read()
 
@@ -480,14 +470,8 @@ class TesvorRestAsync:
         """Download cleaning record map data from recordUrl."""
         _LOGGER.info("Loading cleaning data: %s", record_url)
 
-        if not self.session:
-            self.session = aiohttp.ClientSession(
-                timeout=self.timeout,
-                headers={"User-Agent": self.config['user_agent']}
-            )
-
         try:
-            async with self.session.get(record_url) as response:
+            async with self._ensure_session().get(record_url) as response:
                 response.raise_for_status()
 
                 content_type = response.headers.get('Content-Type', '')

@@ -166,20 +166,18 @@ class TesvorVacuum:
             _LOGGER.debug("STEP 1 - Creating REST client")
             from custom_components.tesvor.tesvorhome.rest.async_client import TesvorRestAsync
 
-            self.rest = TesvorRestAsync(
-                email=self.config.credentials.email,
-                password=self.config.credentials.password,
-                config=vars(self.config.rest),
-            )
+            if self.rest is None:
+                self.rest = TesvorRestAsync(
+                    email=self.config.credentials.email,
+                    password=self.config.credentials.password,
+                    config=vars(self.config.rest),
+                )
 
             _LOGGER.debug("STEP 2 - Entering REST context")
             await self.rest.__aenter__()
 
-            _LOGGER.debug("STEP 3 - Performing login()")
-            await self.rest.login()
-
-            _LOGGER.debug("STEP 4 - Performing login_sdk()")
-            await self.rest.login_sdk()
+            # Renew the application and SDK tokens as one serialized operation.
+            await self.rest.authenticate()
 
             _LOGGER.info("REST authentication successful, client_id=%s", self.rest.client_id)
 
@@ -189,7 +187,8 @@ class TesvorVacuum:
             _LOGGER.debug("Found %s devices", len(devices))
 
             if not devices:
-                raise RuntimeError("No devices found")
+                from custom_components.tesvor.tesvorhome.rest.async_client import TesvorRestError
+                raise TesvorRestError("No devices found in the cloud account")
 
             device = devices[0]
             self.info = VacuumInfo(
@@ -211,8 +210,12 @@ class TesvorVacuum:
             _LOGGER.info("Loaded DP: %s", len(self.dp_manager))
 
             # 4. Create managers (fast)
-            self.cloud_maps = CloudMapManager(self.rest)
-            self.clean_history = CleanHistoryManager(self.rest)
+            if self.cloud_maps is None:
+                self.cloud_maps = CloudMapManager(self.rest)
+            if self.clean_history is None:
+                self.clean_history = CleanHistoryManager(self.rest)
+            if self.visualizer is not None:
+                self.clean_history.set_visualizer(self.visualizer)
 
             # 5. Device image (background, non-critical)
             try:
@@ -235,8 +238,8 @@ class TesvorVacuum:
 
             return True
 
-        except Exception as e:
-            _LOGGER.error("Initialization error: %s", e)
+        except BaseException:
+            # Cleanup also runs if Home Assistant cancels setup or shuts down.
             await self.disconnect()
             raise
 
@@ -324,8 +327,8 @@ class TesvorVacuum:
                 _LOGGER.info("REST session closed")
             except Exception as e:
                 _LOGGER.error("Error closing REST: %s", e)
-            finally:
-                self.rest = None
+            # Keep the client identity used by map/history managers. A later
+            # initialize() reopens it; callbacks cannot revive it after unload.
 
     # ------------------------------------------------------------------
     # Basic commands
@@ -1158,25 +1161,16 @@ class TesvorVacuum:
             return None
 
     async def load_consumables(self) -> bool:
-        """Load consumables information."""
-        if not self.rest or not self.info:
+        """Load consumables, allowing transport failures to reach the coordinator."""
+        if self.rest is None or self.info is None:
             return False
 
-        try:
-            total_stats = await self.rest.get_clean_sum(self.info.device_id)
-            total_hours = total_stats.get("cleanLength", 0) / 3600 if total_stats else 0
-            _LOGGER.debug("Total hours: %s", total_hours)
-
-            consume_data = await self.rest.get_consumables(self.info.device_id)
-            _LOGGER.debug("Raw consume data: %s", consume_data)
-
-            if consume_data:
-                self.state.sensors.update_consumables(consume_data, total_hours)
-                _LOGGER.debug("Loaded consumables: %s", self.state.sensors.consumables)
-                return True
-        except Exception as e:
-            _LOGGER.error("Error loading consumables: %s", e)
-
+        total_stats = await self.rest.get_clean_sum(self.info.device_id)
+        total_hours = total_stats.get("cleanLength", 0) / 3600 if total_stats else 0
+        consume_data = await self.rest.get_consumables(self.info.device_id)
+        if consume_data:
+            self.state.sensors.update_consumables(consume_data, total_hours)
+            return True
         return False
 
     async def get_cleaning_history(self, limit: int = 20) -> List:
