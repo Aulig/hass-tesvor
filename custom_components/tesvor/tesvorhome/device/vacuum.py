@@ -69,14 +69,16 @@ class TesvorVacuum:
     # Water level mapping
     WATER_LEVEL_MAP = {1: "low", 2: "middle", 3: "high"}
 
-    def __init__(self, config):
+    def __init__(self, config, maps_directory: str = "/config/www/tesvor/maps"):
         """
         Initialize vacuum.
 
         Args:
             config: TesvorConfig object with configuration
+            maps_directory: Directory shared by cloud maps and the visualizer
         """
         self.config = config
+        self.maps_directory = Path(maps_directory)
 
         # Clients (initialized in initialize)
         self.rest = None
@@ -137,8 +139,8 @@ class TesvorVacuum:
         if self.visualizer is None and hass:
             _LOGGER.info("Creating AsyncMapVisualizer...")
 
-            # IMPORTANT: Explicitly specify base directory for maps
-            base_dir = "/config/www/tesvor/maps"
+            # IMPORTANT: Use the same base directory as the cloud map manager.
+            base_dir = str(self.maps_directory)
             self.visualizer = AsyncMapVisualizer(hass=hass, base_dir=base_dir)
             _LOGGER.info("Visualizer created with base path: %s", base_dir)
 
@@ -211,7 +213,7 @@ class TesvorVacuum:
 
             # 4. Create managers (fast)
             if self.cloud_maps is None:
-                self.cloud_maps = CloudMapManager(self.rest)
+                self.cloud_maps = CloudMapManager(self.rest, self.maps_directory / "cloud")
             if self.clean_history is None:
                 self.clean_history = CleanHistoryManager(self.rest)
             if self.visualizer is not None:

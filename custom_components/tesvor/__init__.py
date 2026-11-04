@@ -217,7 +217,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
 
     config = await _build_config(hass, entry)
-    vacuum = TesvorVacuum(config)
+    vacuum = TesvorVacuum(config, maps_directory=hass.config.path("www", "tesvor", "maps"))
 
     try:
         if not vacuum.is_initialized:

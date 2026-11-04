@@ -45,12 +45,12 @@ class CloudMapInfo:
 class CloudMapManager:
     """Manager for cloud maps with lazy loading and on-demand PNG generation."""
 
-    def __init__(self, rest_client):
-        """Initialize with REST client."""
+    def __init__(self, rest_client, base_directory: Path):
+        """Initialize with REST client and the configured cloud map directory."""
         self.rest = rest_client
-        self.bv_dir = Path("/config/www/tesvor/maps/cloud/bv")
-        self.json_dir = Path("/config/www/tesvor/maps/cloud/json")
-        self.png_dir = Path("/config/www/tesvor/maps/cloud/png")
+        self.bv_dir = base_directory / "bv"
+        self.json_dir = base_directory / "json"
+        self.png_dir = base_directory / "png"
 
         # Create directories if they don't exist
         for dir_path in [self.bv_dir, self.json_dir, self.png_dir]:

@@ -6,6 +6,7 @@ import socket
 import tempfile
 import unittest
 from collections import Counter
+from pathlib import Path
 from types import MappingProxyType
 
 import aiohttp
@@ -58,7 +59,7 @@ class CloudRecoveryTests(unittest.IsolatedAsyncioTestCase):
             mqtt=MQTTConfig("127.0.0.1", 1, "test", "test"),
             credentials=Credentials("test@example.invalid", "test"),
             device=DeviceConfig(command_delay=0),
-        ))
+        ), maps_directory=self.hass.config.path("www", "tesvor", "maps"))
         self.vacuum._test_mode = True
         self.coordinator = TesvorCoordinator(self.hass, self.vacuum)
 
@@ -159,6 +160,12 @@ class CloudRecoveryTests(unittest.IsolatedAsyncioTestCase):
         mqtt = self.vacuum.mqtt
         maps = self.vacuum.cloud_maps
         history = self.vacuum.clean_history
+        self.assertEqual(
+            maps.png_dir,
+            Path(self.directory.name) / "www" / "tesvor" / "maps" / "cloud" / "png",
+        )
+        self.assertTrue(maps.png_dir.is_dir())
+        self.assertEqual(self.vacuum.visualizer.base_dir, maps.png_dir.parent.parent)
         rest.timeout = aiohttp.ClientTimeout(total=0.5)
         await session.close()
 

@@ -81,7 +81,9 @@ class TesvorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         retry_count=DEFAULT_RETRY_COUNT,
                     ),
                 )
-                vacuum = TesvorVacuum(config)
+                vacuum = TesvorVacuum(
+                    config, maps_directory=self.hass.config.path("www", "tesvor", "maps"),
+                )
                 vacuum._test_mode = True
 
                 try:
